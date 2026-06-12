@@ -10,6 +10,7 @@
  * - Icon/logo assets in resources/, public/, src/renderer/assets/ (from .bak)
  * - i18n locale files in src/renderer/i18n/locales/ (from .bak)
  * - src/renderer/i18n/config.ts (from .bak)
+ * - SettingsGeneral.tsx language selector (from .bak)
  *
  * Removes:
  * - Newly added locale files (no .bak = didn't exist before)
@@ -26,6 +27,14 @@ const INDEX_HTML_PATH = path.join(PROJECT_ROOT, 'index.html');
 const I18N_CONFIG_PATH = path.join(PROJECT_ROOT, 'src', 'renderer', 'i18n', 'config.ts');
 const I18N_LOCALES_DIR = path.join(PROJECT_ROOT, 'src', 'renderer', 'i18n', 'locales');
 const I18N_MANIFEST_PATH = path.join(PROJECT_ROOT, '.brand-i18n-manifest.json');
+const SETTINGS_GENERAL_PATH = path.join(
+  PROJECT_ROOT,
+  'src',
+  'renderer',
+  'components',
+  'settings',
+  'SettingsGeneral.tsx'
+);
 const GENERATED_BRAND_PATH = path.join(
   PROJECT_ROOT,
   'src',
@@ -139,6 +148,9 @@ function main() {
 
   // Restore i18n locale files and config.ts
   restoreI18n();
+
+  // Restore SettingsGeneral.tsx language selector
+  restoreFile(SETTINGS_GENERAL_PATH);
 
   console.log('[brand] Reset complete.');
 }

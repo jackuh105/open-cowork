@@ -34,6 +34,14 @@ const INDEX_HTML_PATH = path.join(PROJECT_ROOT, 'index.html');
 const I18N_CONFIG_PATH = path.join(PROJECT_ROOT, 'src', 'renderer', 'i18n', 'config.ts');
 const I18N_LOCALES_DIR = path.join(PROJECT_ROOT, 'src', 'renderer', 'i18n', 'locales');
 const I18N_MANIFEST_PATH = path.join(PROJECT_ROOT, '.brand-i18n-manifest.json');
+const SETTINGS_GENERAL_PATH = path.join(
+  PROJECT_ROOT,
+  'src',
+  'renderer',
+  'components',
+  'settings',
+  'SettingsGeneral.tsx'
+);
 
 const GENERATED_BRAND_PATH = path.join(SHARED_BRANDING_DIR, '__generated-brand.ts');
 const GENERATED_BRAND_BAK = `${GENERATED_BRAND_PATH}.bak`;
@@ -41,6 +49,33 @@ const PACKAGE_JSON_BAK = `${PACKAGE_JSON_PATH}.bak`;
 const BUILDER_YML_BAK = `${BUILDER_YML_PATH}.bak`;
 const INDEX_HTML_BAK = `${INDEX_HTML_PATH}.bak`;
 const I18N_CONFIG_BAK = `${I18N_CONFIG_PATH}.bak`;
+const SETTINGS_GENERAL_BAK = `${SETTINGS_GENERAL_PATH}.bak`;
+
+/**
+ * Locale code → native language name lookup for the language selector.
+ * Used when patching SettingsGeneral.tsx to add new language buttons.
+ */
+const LOCALE_NATIVE_NAMES = {
+  en: 'English',
+  zh: '中文',
+  ja: '日本語',
+  ko: '한국어',
+  de: 'Deutsch',
+  fr: 'Français',
+  es: 'Español',
+  pt: 'Português',
+  ru: 'Русский',
+  ar: 'العربية',
+  it: 'Italiano',
+  nl: 'Nederlands',
+  th: 'ไทย',
+  vi: 'Tiếng Việt',
+  id: 'Bahasa Indonesia',
+  ms: 'Bahasa Melayu',
+  tr: 'Türkçe',
+  pl: 'Polski',
+  uk: 'Українська',
+};
 
 /**
  * Simple hex color validator.
@@ -338,6 +373,7 @@ function patchI18n(config, brandDir) {
   // Patch config.ts if new languages were added
   if (newLocales.length > 0) {
     patchI18nConfig(newLocales);
+    patchSettingsGeneral(newLocales);
   }
 
   // Write manifest so reset-brand knows which locales were added by this brand
@@ -404,6 +440,51 @@ function patchI18nConfig(newLocales) {
 
   fs.writeFileSync(I18N_CONFIG_PATH, config, 'utf-8');
   console.log(`[brand] Patched i18n/config.ts with new locales: ${newLocales.join(', ')}`);
+}
+
+/**
+ * Patch SettingsGeneral.tsx to add new language buttons to the language selector.
+ *
+ * Replaces the hardcoded `languages` array and `currentLang` detection
+ * so that brand-added languages appear in the UI.
+ */
+function patchSettingsGeneral(newLocales) {
+  if (!fs.existsSync(SETTINGS_GENERAL_PATH)) {
+    console.log('[brand] SettingsGeneral.tsx not found, skipping language selector patch');
+    return;
+  }
+
+  backupFile(SETTINGS_GENERAL_PATH);
+  let content = fs.readFileSync(SETTINGS_GENERAL_PATH, 'utf-8');
+
+  // 1. Replace currentLang detection to handle any language code
+  content = content.replace(
+    /const currentLang = i18n\.language\.startsWith\('zh'\) \? 'zh' : 'en';/,
+    "const currentLang = i18n.language.split('-')[0];"
+  );
+
+  // 2. Build new languages array with all entries
+  const entries = [{ code: 'en', nativeName: 'English' }, { code: 'zh', nativeName: '\u4E2D\u6587' }];
+  for (const locale of newLocales) {
+    const nativeName = LOCALE_NATIVE_NAMES[locale] || locale;
+    entries.push({ code: locale, nativeName });
+  }
+
+  const arrayStr =
+    '[\n' +
+    entries
+      .map((e) => `    { code: '${e.code}', nativeName: '${e.nativeName}' },`)
+      .join('\n') +
+    '\n  ]';
+
+  // 3. Replace hardcoded languages array
+  content = content.replace(
+    /const languages = \[[\s\S]*?\];/,
+    `const languages = ${arrayStr};`
+  );
+
+  fs.writeFileSync(SETTINGS_GENERAL_PATH, content, 'utf-8');
+  console.log(`[brand] Patched SettingsGeneral.tsx with new languages: ${newLocales.join(', ')}`);
 }
 
 /**
