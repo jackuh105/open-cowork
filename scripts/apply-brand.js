@@ -63,20 +63,39 @@ function validateBrand(config) {
   if (typeof config.colors !== 'object' || config.colors === null) {
     throw new Error('brand.colors must be an object');
   }
-  const colorKeys = [
+
+  // Required brand-identity color keys
+  const requiredColorKeys = [
     'primary',
     'primaryHover',
     'accent',
-    'background',
-    'surface',
     'sidebarActiveBg',
     'sidebarActiveText',
-    'textPrimary',
-    'textSecondary',
   ];
-  for (const key of colorKeys) {
+  for (const key of requiredColorKeys) {
     if (!isHexColor(config.colors[key])) {
       throw new Error(`brand.colors.${key} must be a valid hex color (e.g. #2563EB)`);
+    }
+  }
+
+  // Optional theme-override color keys (only validated if provided)
+  const optionalColorKeys = ['background', 'surface', 'textPrimary', 'textSecondary'];
+  for (const key of optionalColorKeys) {
+    if (config.colors[key] !== undefined && !isHexColor(config.colors[key])) {
+      throw new Error(`brand.colors.${key} must be a valid hex color (e.g. #2563EB)`);
+    }
+  }
+
+  // Optional colorsDark section (only validated if provided)
+  if (config.colorsDark !== undefined) {
+    if (typeof config.colorsDark !== 'object' || config.colorsDark === null) {
+      throw new Error('brand.colorsDark must be an object');
+    }
+    const darkKeys = ['background', 'surface', 'textPrimary', 'textSecondary'];
+    for (const key of darkKeys) {
+      if (config.colorsDark[key] !== undefined && !isHexColor(config.colorsDark[key])) {
+        throw new Error(`brand.colorsDark.${key} must be a valid hex color (e.g. #171614)`);
+      }
     }
   }
 

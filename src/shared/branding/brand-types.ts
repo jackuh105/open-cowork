@@ -10,12 +10,16 @@ export interface BrandColors {
   primary: string;
   primaryHover: string;
   accent: string;
-  background: string;
-  surface: string;
+  /** Optional — overrides the light/dark theme background. Omit to keep the built-in theme. */
+  background?: string;
+  /** Optional — overrides the light/dark theme surface. Omit to keep the built-in theme. */
+  surface?: string;
   sidebarActiveBg: string;
   sidebarActiveText: string;
-  textPrimary: string;
-  textSecondary: string;
+  /** Optional — overrides the theme text primary. Omit to keep the built-in theme. */
+  textPrimary?: string;
+  /** Optional — overrides the theme text secondary. Omit to keep the built-in theme. */
+  textSecondary?: string;
 }
 
 export interface BrandFeatures {
@@ -32,6 +36,11 @@ export interface BrandAssets {
   logo: string;
 }
 
+/** Theme-level color overrides that a brand may provide for dark mode. */
+export type BrandColorsDark = Partial<
+  Pick<BrandColors, 'background' | 'surface' | 'textPrimary' | 'textSecondary'>
+>;
+
 export interface BrandConfig {
   id: string;
   productName: string;
@@ -40,6 +49,8 @@ export interface BrandConfig {
   colors: BrandColors;
   features: BrandFeatures;
   assets: BrandAssets;
+  /** Optional dark-mode theme overrides. Omit to keep the built-in dark theme. */
+  colorsDark?: BrandColorsDark;
 }
 
 /**

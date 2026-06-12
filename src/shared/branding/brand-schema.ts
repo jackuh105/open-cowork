@@ -5,7 +5,13 @@
  * so it works in both main and renderer without bloating bundles.
  */
 
-import type { BrandConfig, BrandColors, BrandFeatures, BrandAssets } from './brand-types';
+import type {
+  BrandConfig,
+  BrandColors,
+  BrandColorsDark,
+  BrandFeatures,
+  BrandAssets,
+} from './brand-types';
 
 function isString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
@@ -24,22 +30,29 @@ function validateColors(obj: unknown): BrandColors {
     throw new Error('brand.colors must be an object');
   }
   const c = obj as Record<string, unknown>;
+
+  // Required brand-identity colors (always validated)
   const required: (keyof BrandColors)[] = [
     'primary',
     'primaryHover',
     'accent',
-    'background',
-    'surface',
     'sidebarActiveBg',
     'sidebarActiveText',
-    'textPrimary',
-    'textSecondary',
   ];
   for (const key of required) {
     if (!isHexColor(c[key])) {
       throw new Error(`brand.colors.${key} must be a valid hex color (e.g. #2563EB)`);
     }
   }
+
+  // Optional theme-override colors (only validated if provided)
+  const optional: (keyof BrandColors)[] = ['background', 'surface', 'textPrimary', 'textSecondary'];
+  for (const key of optional) {
+    if (c[key] !== undefined && !isHexColor(c[key])) {
+      throw new Error(`brand.colors.${key} must be a valid hex color (e.g. #2563EB)`);
+    }
+  }
+
   return c as unknown as BrandColors;
 }
 
@@ -76,6 +89,26 @@ function validateAssets(obj: unknown): BrandAssets {
   return a as unknown as BrandAssets;
 }
 
+function validateColorsDark(obj: unknown): BrandColorsDark | undefined {
+  if (obj === undefined) return undefined;
+  if (typeof obj !== 'object' || obj === null) {
+    throw new Error('brand.colorsDark must be an object');
+  }
+  const c = obj as Record<string, unknown>;
+  const optionalKeys: (keyof BrandColorsDark)[] = [
+    'background',
+    'surface',
+    'textPrimary',
+    'textSecondary',
+  ];
+  for (const key of optionalKeys) {
+    if (c[key] !== undefined && !isHexColor(c[key])) {
+      throw new Error(`brand.colorsDark.${key} must be a valid hex color (e.g. #171614)`);
+    }
+  }
+  return c as unknown as BrandColorsDark;
+}
+
 export function validateBrandConfig(obj: unknown): BrandConfig {
   if (typeof obj !== 'object' || obj === null) {
     throw new Error('brand.json must contain an object');
@@ -97,5 +130,6 @@ export function validateBrandConfig(obj: unknown): BrandConfig {
     colors: validateColors(b.colors),
     features: validateFeatures(b.features),
     assets: validateAssets(b.assets),
+    colorsDark: validateColorsDark(b.colorsDark),
   };
 }
