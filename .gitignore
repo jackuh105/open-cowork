@@ -105,9 +105,7 @@ website/.vitepress/cache/
 .tmp/
 
 # Branding backups
-package.json.bak
-electron-builder.yml.bak
-index.html.bak
+*.bak
 
 # Screenshots (debug/review)
 *.png

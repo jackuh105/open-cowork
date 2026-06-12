@@ -112,6 +112,19 @@ function backupFile(filePath) {
 }
 
 /**
+ * Backup an asset file (binary) if a backup doesn't already exist.
+ */
+function backupAsset(filePath) {
+  const bakPath = `${filePath}.bak`;
+  if (!fs.existsSync(bakPath)) {
+    if (fs.existsSync(filePath)) {
+      fs.copyFileSync(filePath, bakPath);
+      console.log(`[brand] Backed up asset ${path.relative(PROJECT_ROOT, filePath)}`);
+    }
+  }
+}
+
+/**
  * Generate the TypeScript brand constants file.
  */
 function generateBrandTs(config) {
@@ -203,6 +216,7 @@ function copyBrandAssets(config, brandDir) {
     const src = path.join(brandDir, sourceName);
     const destResources = path.join(RESOURCES_DIR, destName);
     if (fs.existsSync(src)) {
+      backupAsset(destResources);
       fs.copyFileSync(src, destResources);
       console.log(`[brand] Copied asset ${sourceName} → resources/${destName}`);
     } else {
@@ -215,6 +229,8 @@ function copyBrandAssets(config, brandDir) {
   if (fs.existsSync(logoSrc)) {
     const destPublic = path.join(PUBLIC_DIR, 'logo.png');
     const destRenderer = path.join(RENDERER_ASSETS_DIR, 'logo.png');
+    backupAsset(destPublic);
+    backupAsset(destRenderer);
     fs.copyFileSync(logoSrc, destPublic);
     fs.copyFileSync(logoSrc, destRenderer);
     console.log(`[brand] Copied logo → public/logo.png and src/renderer/assets/logo.png`);
