@@ -42,6 +42,15 @@ const SETTINGS_GENERAL_PATH = path.join(
   'settings',
   'SettingsGeneral.tsx'
 );
+const SETTINGS_PANEL_PATH = path.join(
+  PROJECT_ROOT,
+  'src',
+  'renderer',
+  'components',
+  'SettingsPanel.tsx'
+);
+const BRAND_TYPES_PATH = path.join(SHARED_BRANDING_DIR, 'brand-types.ts');
+const BRAND_SCHEMA_PATH = path.join(SHARED_BRANDING_DIR, 'brand-schema.ts');
 
 const GENERATED_BRAND_PATH = path.join(SHARED_BRANDING_DIR, '__generated-brand.ts');
 const GENERATED_BRAND_BAK = `${GENERATED_BRAND_PATH}.bak`;
@@ -50,6 +59,14 @@ const BUILDER_YML_BAK = `${BUILDER_YML_PATH}.bak`;
 const INDEX_HTML_BAK = `${INDEX_HTML_PATH}.bak`;
 const I18N_CONFIG_BAK = `${I18N_CONFIG_PATH}.bak`;
 const SETTINGS_GENERAL_BAK = `${SETTINGS_GENERAL_PATH}.bak`;
+const SETTINGS_PANEL_BAK = `${SETTINGS_PANEL_PATH}.bak`;
+const BRAND_TYPES_BAK = `${BRAND_TYPES_PATH}.bak`;
+const BRAND_SCHEMA_BAK = `${BRAND_SCHEMA_PATH}.bak`;
+
+/**
+ * All valid settings tab IDs.
+ */
+const VALID_TAB_IDS = ['api', 'sandbox', 'connectors', 'skills', 'memory', 'schedule', 'remote', 'logs', 'general'];
 
 /**
  * Locale code → native language name lookup for the language selector.
@@ -143,6 +160,21 @@ function validateBrand(config) {
   }
   if (typeof config.features.gradientTitles !== 'boolean') {
     throw new Error('brand.features.gradientTitles must be a boolean');
+  }
+
+  // Optional visibleSettings (validated if provided)
+  if (config.visibleSettings !== undefined) {
+    if (!Array.isArray(config.visibleSettings)) {
+      throw new Error('brand.visibleSettings must be an array of tab IDs');
+    }
+    for (const tab of config.visibleSettings) {
+      if (typeof tab !== 'string' || !VALID_TAB_IDS.includes(tab)) {
+        throw new Error(
+          `brand.visibleSettings contains invalid tab ID: "${tab}". ` +
+          `Valid IDs: ${VALID_TAB_IDS.join(', ')}`
+        );
+      }
+    }
   }
 
   if (typeof config.assets !== 'object' || config.assets === null) {
@@ -488,6 +520,106 @@ function patchSettingsGeneral(newLocales) {
 }
 
 /**
+ * Patch brand-types.ts to add visibleSettings to BrandConfig interface.
+ */
+function patchBrandTypes() {
+  backupFile(BRAND_TYPES_PATH);
+  let content = fs.readFileSync(BRAND_TYPES_PATH, 'utf-8');
+  content = content.replace(
+    /colorsDark\?: BrandColorsDark;\n/,
+    "colorsDark?: BrandColorsDark;\n  /** Optional — list of settings tab IDs to show. Omit to show all. 'general' is always shown. */\n  visibleSettings?: string[];\n"
+  );
+  fs.writeFileSync(BRAND_TYPES_PATH, content, 'utf-8');
+  console.log('[brand] Patched brand-types.ts with visibleSettings');
+}
+
+/**
+ * Patch brand-schema.ts to validate visibleSettings and include it in the return value.
+ */
+function patchBrandSchema() {
+  backupFile(BRAND_SCHEMA_PATH);
+  let content = fs.readFileSync(BRAND_SCHEMA_PATH, 'utf-8');
+
+  // Add validateVisibleSettings function before validateBrandConfig
+  const validateFunc = `\nfunction validateVisibleSettings(obj: unknown): string[] | undefined {\n  if (obj === undefined) return undefined;\n  if (!Array.isArray(obj)) {\n    throw new Error('brand.visibleSettings must be an array');\n  }\n  const validTabs = ['api', 'sandbox', 'connectors', 'skills', 'memory', 'schedule', 'remote', 'logs', 'general'];\n  for (const tab of obj) {\n    if (typeof tab !== 'string' || !validTabs.includes(tab)) {\n      throw new Error(\`brand.visibleSettings contains invalid tab ID: \${tab}\`);\n    }\n  }\n  return obj as string[];\n}\n\n`;
+  content = content.replace(
+    /export function validateBrandConfig/,
+    validateFunc + 'export function validateBrandConfig'
+  );
+
+  // Add visibleSettings to the return object
+  content = content.replace(
+    /colorsDark: validateColorsDark\(b\.colorsDark\),\n {2}\};/,
+    'colorsDark: validateColorsDark(b.colorsDark),\n    visibleSettings: validateVisibleSettings(b.visibleSettings),\n  };'
+  );
+
+  fs.writeFileSync(BRAND_SCHEMA_PATH, content, 'utf-8');
+  console.log('[brand] Patched brand-schema.ts with visibleSettings validation');
+}
+
+/**
+ * Patch SettingsPanel.tsx to hide settings tabs not in the brand's visibleSettings whitelist.
+ *
+ * - Injects a HIDDEN_TABS constant at module scope
+ * - Replaces tabs.map/tabs.find with visibleTabs equivalents
+ * - Adjusts initial-tab and store-signal logic to skip hidden tabs
+ */
+function patchSettingsPanel(config) {
+  const visibleSettings = config.visibleSettings;
+  if (!visibleSettings || !Array.isArray(visibleSettings)) {
+    console.log('[brand] No visibleSettings in brand config, skipping SettingsPanel patch');
+    return;
+  }
+
+  // Compute which tabs to hide (always keep 'general' visible)
+  const effectiveVisible = [...new Set([...visibleSettings, 'general'])];
+  const hiddenTabs = VALID_TAB_IDS.filter((id) => !effectiveVisible.includes(id));
+
+  if (hiddenTabs.length === 0) {
+    console.log('[brand] All tabs visible, skipping SettingsPanel patch');
+    return;
+  }
+
+  backupFile(SETTINGS_PANEL_PATH);
+  let content = fs.readFileSync(SETTINGS_PANEL_PATH, 'utf-8');
+
+  // 1. Inject HIDDEN_TABS + FIRST_VISIBLE_TAB constants before the component function
+  const hiddenTabsStr = JSON.stringify(hiddenTabs).replace(/"/g, "'");
+  const firstVisible = VALID_TAB_IDS.find((id) => !hiddenTabs.includes(id)) || 'general';
+  content = content.replace(
+    /export function SettingsPanel/,
+    `const HIDDEN_TABS: TabId[] = ${hiddenTabsStr};\nconst FIRST_VISIBLE_TAB: TabId = '${firstVisible}';\n\nexport function SettingsPanel`
+  );
+
+  // 2. Replace tabs.map( → tabs.filter(...).map( (sidebar rendering)
+  content = content.replace(
+    /\{tabs\.map\(\(tab\)/,
+    '{tabs.filter((tab) => !HIDDEN_TABS.includes(tab.id)).map((tab)'
+  );
+
+  // 3. Replace tabs.find( → tabs.filter(...).find( (activeTabMeta)
+  content = content.replace(
+    /tabs\.find\(\(tab\) => tab\.id === activeTab\)/,
+    'tabs.find((tab) => tab.id === activeTab && !HIDDEN_TABS.includes(tab.id))'
+  );
+
+  // 4. Fix resolvedInitial to fall back when tab is hidden
+  content = content.replace(
+    /const resolvedInitial =\n(\s+)storeTab && VALID_TABS\.has\(storeTab as TabId\) \? \(storeTab as TabId\) : initialTab;/,
+    `const resolvedInitial =\n$1storeTab && VALID_TABS.has(storeTab as TabId) && !HIDDEN_TABS.includes(storeTab as TabId)\n$1  ? (storeTab as TabId)\n$1  : initialTab && !HIDDEN_TABS.includes(initialTab)\n$1    ? initialTab\n$1    : FIRST_VISIBLE_TAB;`
+  );
+
+  // 5. Fix store signal effect to ignore hidden tabs
+  content = content.replace(
+    /if \(storeTab && VALID_TABS\.has\(storeTab as TabId\)\)/,
+    'if (storeTab && VALID_TABS.has(storeTab as TabId) && !HIDDEN_TABS.includes(storeTab as TabId))'
+  );
+
+  fs.writeFileSync(SETTINGS_PANEL_PATH, content, 'utf-8');
+  console.log(`[brand] Patched SettingsPanel.tsx with hidden tabs: ${hiddenTabs.join(', ')}`);
+}
+
+/**
  * Main entry point.
  */
 function main() {
@@ -543,6 +675,13 @@ function main() {
   generateBrandTs(config);
   copyBrandAssets(config, brandDir);
   patchI18n(config, brandDir);
+
+  // Patch type system and UI for visibleSettings (only when configured)
+  if (config.visibleSettings) {
+    patchBrandTypes();
+    patchBrandSchema();
+  }
+  patchSettingsPanel(config);
 
   console.log(`[brand] Brand "${config.productName}" applied successfully.`);
 }

@@ -18,6 +18,7 @@
   "features": {
     "gradientTitles": true
   },
+  "visibleSettings": ["api", "sandbox", "connectors", "skills", "memory", "schedule", "remote", "logs", "general"],
   "assets": {
     "iconMac": "icon.icns",
     "iconWin": "icon.ico",

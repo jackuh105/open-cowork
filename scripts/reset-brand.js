@@ -11,6 +11,9 @@
  * - i18n locale files in src/renderer/i18n/locales/ (from .bak)
  * - src/renderer/i18n/config.ts (from .bak)
  * - SettingsGeneral.tsx language selector (from .bak)
+ * - SettingsPanel.tsx tab visibility (from .bak)
+ * - src/shared/branding/brand-types.ts (from .bak)
+ * - src/shared/branding/brand-schema.ts (from .bak)
  *
  * Removes:
  * - Newly added locale files (no .bak = didn't exist before)
@@ -34,6 +37,27 @@ const SETTINGS_GENERAL_PATH = path.join(
   'components',
   'settings',
   'SettingsGeneral.tsx'
+);
+const SETTINGS_PANEL_PATH = path.join(
+  PROJECT_ROOT,
+  'src',
+  'renderer',
+  'components',
+  'SettingsPanel.tsx'
+);
+const BRAND_TYPES_PATH = path.join(
+  PROJECT_ROOT,
+  'src',
+  'shared',
+  'branding',
+  'brand-types.ts'
+);
+const BRAND_SCHEMA_PATH = path.join(
+  PROJECT_ROOT,
+  'src',
+  'shared',
+  'branding',
+  'brand-schema.ts'
 );
 const GENERATED_BRAND_PATH = path.join(
   PROJECT_ROOT,
@@ -151,6 +175,13 @@ function main() {
 
   // Restore SettingsGeneral.tsx language selector
   restoreFile(SETTINGS_GENERAL_PATH);
+
+  // Restore SettingsPanel.tsx tab visibility
+  restoreFile(SETTINGS_PANEL_PATH);
+
+  // Restore brand type system files
+  restoreFile(BRAND_TYPES_PATH);
+  restoreFile(BRAND_SCHEMA_PATH);
 
   console.log('[brand] Reset complete.');
 }
