@@ -52,7 +52,7 @@ coverage/
 *.pem
 *.p12
 
-# Claude 
+# Claude
 .claude/*
 !.claude/skills/
 CLAUDE.md
@@ -115,3 +115,8 @@ index.html.bak
 !public/*.png
 !website/public/*.png
 !resources/social-preview.png
+
+# Custom Branding
+brands/
+!brands/_default/
+!brands/acme-cowork/
