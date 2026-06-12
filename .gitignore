@@ -106,6 +106,7 @@ website/.vitepress/cache/
 
 # Branding backups
 *.bak
+.brand-i18n-manifest.json
 
 # Screenshots (debug/review)
 *.png

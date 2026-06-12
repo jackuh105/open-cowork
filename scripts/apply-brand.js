@@ -31,12 +31,16 @@ const SHARED_BRANDING_DIR = path.join(PROJECT_ROOT, 'src', 'shared', 'branding')
 const PACKAGE_JSON_PATH = path.join(PROJECT_ROOT, 'package.json');
 const BUILDER_YML_PATH = path.join(PROJECT_ROOT, 'electron-builder.yml');
 const INDEX_HTML_PATH = path.join(PROJECT_ROOT, 'index.html');
+const I18N_CONFIG_PATH = path.join(PROJECT_ROOT, 'src', 'renderer', 'i18n', 'config.ts');
+const I18N_LOCALES_DIR = path.join(PROJECT_ROOT, 'src', 'renderer', 'i18n', 'locales');
+const I18N_MANIFEST_PATH = path.join(PROJECT_ROOT, '.brand-i18n-manifest.json');
 
 const GENERATED_BRAND_PATH = path.join(SHARED_BRANDING_DIR, '__generated-brand.ts');
 const GENERATED_BRAND_BAK = `${GENERATED_BRAND_PATH}.bak`;
 const PACKAGE_JSON_BAK = `${PACKAGE_JSON_PATH}.bak`;
 const BUILDER_YML_BAK = `${BUILDER_YML_PATH}.bak`;
 const INDEX_HTML_BAK = `${INDEX_HTML_PATH}.bak`;
+const I18N_CONFIG_BAK = `${I18N_CONFIG_PATH}.bak`;
 
 /**
  * Simple hex color validator.
@@ -257,6 +261,152 @@ function copyBrandAssets(config, brandDir) {
 }
 
 /**
+ * Deep-merge two objects. Override values take precedence.
+ * Arrays are replaced, not merged.
+ */
+function deepMerge(base, override) {
+  const result = { ...base };
+  for (const [key, val] of Object.entries(override)) {
+    if (
+      val &&
+      typeof val === 'object' &&
+      !Array.isArray(val) &&
+      typeof result[key] === 'object' &&
+      result[key] !== null &&
+      !Array.isArray(result[key])
+    ) {
+      result[key] = deepMerge(result[key], val);
+    } else {
+      result[key] = val;
+    }
+  }
+  return result;
+}
+
+/**
+ * Patch i18n locale files with brand-specific overrides.
+ *
+ * - Override: deep-merge brand i18n/<locale>.json on top of the existing base locale
+ * - New language: copy brand i18n/<locale>.json and patch config.ts
+ */
+function patchI18n(config, brandDir) {
+  const brandI18nDir = path.join(brandDir, 'i18n');
+  if (!fs.existsSync(brandI18nDir)) {
+    console.log('[brand] No i18n/ folder in brand, skipping locale patching');
+    return;
+  }
+
+  const brandLocaleFiles = fs
+    .readdirSync(brandI18nDir)
+    .filter((f) => f.endsWith('.json'));
+
+  if (brandLocaleFiles.length === 0) {
+    console.log('[brand] i18n/ folder is empty, skipping locale patching');
+    return;
+  }
+
+  const newLocales = [];
+
+  for (const localeFile of brandLocaleFiles) {
+    const localeCode = path.basename(localeFile, '.json');
+    const brandLocalePath = path.join(brandI18nDir, localeFile);
+    const baseLocalePath = path.join(I18N_LOCALES_DIR, localeFile);
+
+    let brandLocaleData;
+    try {
+      brandLocaleData = JSON.parse(fs.readFileSync(brandLocalePath, 'utf-8'));
+    } catch (err) {
+      console.error(`[brand] ERROR: Failed to parse i18n/${localeFile}: ${err.message}`);
+      process.exit(1);
+    }
+
+    if (fs.existsSync(baseLocalePath)) {
+      // Override case: deep-merge brand overrides on top of base locale
+      backupFile(baseLocalePath);
+      const baseLocaleData = JSON.parse(fs.readFileSync(baseLocalePath, 'utf-8'));
+      const merged = deepMerge(baseLocaleData, brandLocaleData);
+      fs.writeFileSync(baseLocalePath, JSON.stringify(merged, null, 2) + '\n', 'utf-8');
+      console.log(`[brand] Merged i18n/${localeFile} overrides into locales/${localeFile}`);
+    } else {
+      // New language case: copy brand locale and track for config.ts patching
+      fs.writeFileSync(baseLocalePath, JSON.stringify(brandLocaleData, null, 2) + '\n', 'utf-8');
+      newLocales.push(localeCode);
+      console.log(`[brand] Added new locale: locales/${localeFile}`);
+    }
+  }
+
+  // Patch config.ts if new languages were added
+  if (newLocales.length > 0) {
+    patchI18nConfig(newLocales);
+  }
+
+  // Write manifest so reset-brand knows which locales were added by this brand
+  const manifest = { newLocales };
+  fs.writeFileSync(I18N_MANIFEST_PATH, JSON.stringify(manifest, null, 2), 'utf-8');
+  console.log(`[brand] Wrote i18n manifest (${newLocales.length} new locale(s))`);
+}
+
+/**
+ * Patch src/renderer/i18n/config.ts to register new locale(s).
+ *
+ * Adds:
+ * - import statement for each new locale JSON
+ * - resource entry in the resources object
+ * - locale code to supportedLngs array
+ */
+function patchI18nConfig(newLocales) {
+  backupFile(I18N_CONFIG_PATH);
+  let config = fs.readFileSync(I18N_CONFIG_PATH, 'utf-8');
+
+  for (const locale of newLocales) {
+    const importName = `${locale}Translations`;
+    const importLine = `import ${importName} from './locales/${locale}.json';`;
+    const resourceEntry = `      ${locale}: {\n        translation: ${importName},\n      },`;
+
+    // 1. Insert import after the last existing locale import
+    const lastImportMatch = config.match(
+      /import \w+Translations from '\.\/locales\/\w+\.json';\n/g
+    );
+    if (lastImportMatch) {
+      const lastImport = lastImportMatch[lastImportMatch.length - 1];
+      config = config.replace(lastImport, lastImport + importLine + '\n');
+    } else {
+      // Fallback: insert after the LanguageDetector import
+      config = config.replace(
+        /(import LanguageDetector from 'i18next-browser-languagedetector';\n)/,
+        `$1\n${importLine}\n`
+      );
+    }
+
+    // 2. Insert resource entry before the closing of resources object
+    // Find the pattern: "    },\n    fallbackLng"
+    config = config.replace(
+      /( {4}\},\n)( {4}fallbackLng)/,
+      `${resourceEntry}\n$1$2`
+    );
+
+    // 3. Append locale code to supportedLngs array
+    config = config.replace(
+      /supportedLngs: \[([^\]]+)\]/,
+      (match, inner) => {
+        const existing = inner
+          .split(',')
+          .map((s) => s.trim().replace(/['"]/g, ''))
+          .filter(Boolean);
+        if (!existing.includes(locale)) {
+          existing.push(locale);
+        }
+        const quoted = existing.map((l) => `'${l}'`).join(', ');
+        return `supportedLngs: [${quoted}]`;
+      }
+    );
+  }
+
+  fs.writeFileSync(I18N_CONFIG_PATH, config, 'utf-8');
+  console.log(`[brand] Patched i18n/config.ts with new locales: ${newLocales.join(', ')}`);
+}
+
+/**
  * Main entry point.
  */
 function main() {
@@ -311,6 +461,7 @@ function main() {
   patchIndexHtml(config);
   generateBrandTs(config);
   copyBrandAssets(config, brandDir);
+  patchI18n(config, brandDir);
 
   console.log(`[brand] Brand "${config.productName}" applied successfully.`);
 }

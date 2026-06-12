@@ -28,10 +28,10 @@ export function applyRendererBranding(): void {
 
   // Brand-identity vars: always active (both themes)
   const commonVars = [
-    `--color-accent: ${colors.primary};`,
-    `--color-accent-hover: ${colors.primaryHover};`,
-    `--brand-sidebar-active-bg: ${colors.sidebarActiveBg};`,
-    `--brand-sidebar-active-text: ${colors.sidebarActiveText};`,
+    `--color-accent: ${colors.primary} !important;`,
+    `--color-accent-hover: ${colors.primaryHover} !important;`,
+    `--brand-sidebar-active-bg: ${colors.sidebarActiveBg} !important;`,
+    `--brand-sidebar-active-text: ${colors.sidebarActiveText} !important;`,
   ];
   css.push(`:root { ${commonVars.join(' ')} }`);
 
@@ -39,16 +39,16 @@ export function applyRendererBranding(): void {
   const lightVars: string[] = [];
   if (colors.background) {
     lightVars.push(
-      `--color-background: ${colors.background};`,
-      `--color-background-secondary: ${colors.background};`
+      `--color-background: ${colors.background} !important;`,
+      `--color-background-secondary: ${colors.background} !important;`
     );
   }
-  if (colors.surface) lightVars.push(`--color-surface: ${colors.surface};`);
-  if (colors.textPrimary) lightVars.push(`--color-text-primary: ${colors.textPrimary};`);
+  if (colors.surface) lightVars.push(`--color-surface: ${colors.surface} !important;`);
+  if (colors.textPrimary) lightVars.push(`--color-text-primary: ${colors.textPrimary} !important;`);
   if (colors.textSecondary) {
     lightVars.push(
-      `--color-text-secondary: ${colors.textSecondary};`,
-      `--color-text-muted: ${colors.textSecondary};`
+      `--color-text-secondary: ${colors.textSecondary} !important;`,
+      `--color-text-muted: ${colors.textSecondary} !important;`
     );
   }
   if (lightVars.length > 0) {
@@ -60,16 +60,17 @@ export function applyRendererBranding(): void {
     const darkVars: string[] = [];
     if (colorsDark.background) {
       darkVars.push(
-        `--color-background: ${colorsDark.background};`,
-        `--color-background-secondary: ${colorsDark.background};`
+        `--color-background: ${colorsDark.background} !important;`,
+        `--color-background-secondary: ${colorsDark.background} !important;`
       );
     }
-    if (colorsDark.surface) darkVars.push(`--color-surface: ${colorsDark.surface};`);
-    if (colorsDark.textPrimary) darkVars.push(`--color-text-primary: ${colorsDark.textPrimary};`);
+    if (colorsDark.surface) darkVars.push(`--color-surface: ${colorsDark.surface} !important;`);
+    if (colorsDark.textPrimary)
+      darkVars.push(`--color-text-primary: ${colorsDark.textPrimary} !important;`);
     if (colorsDark.textSecondary) {
       darkVars.push(
-        `--color-text-secondary: ${colorsDark.textSecondary};`,
-        `--color-text-muted: ${colorsDark.textSecondary};`
+        `--color-text-secondary: ${colorsDark.textSecondary} !important;`,
+        `--color-text-muted: ${colorsDark.textSecondary} !important;`
       );
     }
     if (darkVars.length > 0) {
