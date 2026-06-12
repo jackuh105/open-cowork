@@ -6,6 +6,4 @@ scope:
 source_files: []
 depends_on: []
 related_to:
-  - path: main_process/sandbox_execution/lima_agent
-  - path: main_process/tool_execution
   - path: main_process/sandbox_execution/native_common

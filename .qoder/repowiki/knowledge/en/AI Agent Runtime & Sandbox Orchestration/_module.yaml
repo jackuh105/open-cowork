@@ -8,15 +8,7 @@ source_files: []
 depends_on: []
 related_to:
   - path: main_process/claude_agent_runtime
-  - path: main_process/remote_connectivity
-  - path: main_process/mcp_protocol
-  - path: main_process/tool_execution
-  - path: unit_tests
   - path: main_process/memory_system
-  - path: main_process/skills_plugins
-  - path: main_process/sandbox_execution
-  - path: main_process/entry_points
   - path: main_process/config_management
   - path: main_process/utilities
-  - path: shared_types
   - path: renderer_ui

@@ -5,5 +5,4 @@ scope:
   - .claude/skills/
 source_files: []
 depends_on: []
-related_to:
-  - path: main_process/skills_plugins
+related_to: []

@@ -10,7 +10,3 @@ related_to:
   - path: main_process/session_management
   - path: main_process/config_management
   - path: main_process/utilities
-  - path: main_process/mcp_protocol
-  - path: main_process/entry_points
-  - path: main_process/tool_execution
-  - path: main_process/remote_connectivity

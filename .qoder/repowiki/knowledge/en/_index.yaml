@@ -2,7 +2,7 @@
 schema_version: 1
 locale: en-US
 branch: main
-exported_at: '2026-06-11T14:27:35Z'
+exported_at: '2026-06-12T08:12:01Z'
 modules:
   '':
     dir_name: Open Cowork Desktop Application
@@ -52,7 +52,6 @@ modules:
     related_to:
       - path: ci_config
       - path: resources_assets
-      - path: docs_website
   ci_config:
     dir_name: CI_CD & Release Automation
     title: CI/CD & Release Automation
@@ -63,41 +62,7 @@ modules:
     depends_on: []
     related_to:
       - path: build_scripts
-      - path: docs_website
       - path: resources_assets
-  docs_website:
-    dir_name: Open Cowork Documentation Website
-    title: Open Cowork Documentation Website
-    scope:
-      - website/
-    source_files: []
-    children: []
-    depends_on: []
-    related_to:
-      - path: renderer_ui
-      - path: ci_config
-      - path: build_scripts
-      - path: shared_types
-  main_process:
-    dir_name: Open Cowork Remote Agent Gateway
-    title: Open Cowork Remote Agent Gateway
-    scope:
-      - src/main/
-    source_files: []
-    children:
-      - main_process/config_management
-      - main_process/claude_agent_runtime
-      - main_process/memory_system
-      - main_process/utilities
-      - main_process/session_management
-      - main_process/sandbox_execution
-      - main_process/entry_points
-      - main_process/tool_execution
-      - main_process/skills_plugins
-      - main_process/remote_connectivity
-      - main_process/mcp_protocol
-    depends_on: []
-    related_to: []
   main_process/claude_agent_runtime:
     dir_name: AI Agent Execution & Session Orchestration
     title: AI Agent Execution & Session Orchestration
@@ -109,15 +74,7 @@ modules:
     related_to:
       - path: main_process/session_management
       - path: main_process/memory_system
-      - path: main_process/skills_plugins
-      - path: main_process/tool_execution
-      - path: main_process/mcp_protocol
-      - path: unit_tests
-      - path: main_process/remote_connectivity
       - path: main_process/utilities
-      - path: main_process/sandbox_execution
-      - path: shared_types
-      - path: main_process/entry_points
       - path: main_process/config_management
       - path: renderer_ui
   main_process/config_management:
@@ -132,155 +89,22 @@ modules:
     related_to:
       - path: main_process/utilities
       - path: renderer_ui
-      - path: main_process/entry_points
       - path: main_process/memory_system
-      - path: main_process/remote_connectivity
-      - path: shared_types
-      - path: main_process/session_management
-      - path: unit_tests
-      - path: main_process/mcp_protocol
-      - path: main_process/skills_plugins
-      - path: main_process/claude_agent_runtime
-      - path: main_process/tool_execution
-      - path: main_process/sandbox_execution
-  main_process/entry_points:
-    dir_name: Electron Main Process Entry Points
-    title: Electron Main Process Entry Points
-    scope:
-      - src/main/index.ts
-      - src/main/nav-server.ts
-      - src/main/preflight.ts
-    source_files: []
-    children: []
-    depends_on: []
-    related_to:
-      - path: renderer_ui
-      - path: main_process/utilities
-      - path: shared_types
-      - path: main_process/remote_connectivity
-      - path: main_process/config_management
-      - path: main_process/mcp_protocol
       - path: main_process/session_management
       - path: main_process/claude_agent_runtime
-      - path: main_process/tool_execution
-      - path: main_process/skills_plugins
-      - path: main_process/sandbox_execution
-      - path: main_process/memory_system
-      - path: unit_tests
-  main_process/mcp_protocol:
-    dir_name: Model Context Protocol (MCP) Server Management & Integration
-    title: Model Context Protocol (MCP) Server Management & Integration
-    scope:
-      - src/main/mcp/
-    source_files: []
-    children: []
-    depends_on: []
-    related_to:
-      - path: main_process/session_management
-      - path: main_process/claude_agent_runtime
-      - path: main_process/utilities
-      - path: main_process/entry_points
-      - path: unit_tests
-      - path: main_process/skills_plugins
-      - path: main_process/remote_connectivity
-      - path: main_process/config_management
-      - path: renderer_ui
-      - path: main_process/memory_system
-      - path: shared_types
-      - path: main_process/tool_execution
-      - path: main_process/sandbox_execution
   main_process/memory_system:
     dir_name: Agent Long-Term Memory Orchestrator
     title: Agent Long-Term Memory Orchestrator
     scope:
       - src/main/memory/
     source_files: []
-    children:
-      - main_process/memory_system/memory_infrastructure
+    children: []
     depends_on: []
     related_to:
       - path: main_process/claude_agent_runtime
       - path: main_process/session_management
       - path: main_process/config_management
       - path: main_process/utilities
-      - path: main_process/mcp_protocol
-      - path: main_process/entry_points
-      - path: main_process/tool_execution
-      - path: main_process/remote_connectivity
-  main_process/memory_system/memory_infrastructure:
-    dir_name: Long-Term Memory & Context Management
-    title: Long-Term Memory & Context Management
-    scope:
-      - src/main/memory/memory-ingestion-queue.ts
-      - src/main/memory/memory-retriever.ts
-      - src/main/memory/memory-state-store.ts
-      - src/main/memory/memory-manager.ts
-      - src/main/memory/memory-service.ts
-      - src/main/memory/memory-navigator.ts
-      - src/main/memory/memory-extension.ts
-      - src/main/memory/memory-llm-client.ts
-      - src/main/memory/memory-types.ts
-      - src/main/memory/memory-utils.ts
-      - src/main/memory/memory-prompts.ts
-      - src/main/memory/memory-prompt-optimizer.ts
-    source_files: []
-    children: []
-    depends_on: []
-    related_to: []
-  main_process/remote_connectivity:
-    dir_name: Remote Control Gateway & Channel Integration
-    title: Remote Control Gateway & Channel Integration
-    scope:
-      - src/main/remote/
-    source_files: []
-    children: []
-    depends_on: []
-    related_to:
-      - path: main_process/session_management
-      - path: renderer_ui
-      - path: main_process/entry_points
-      - path: main_process/utilities
-      - path: main_process/claude_agent_runtime
-      - path: main_process/config_management
-      - path: main_process/mcp_protocol
-      - path: unit_tests
-      - path: main_process/tool_execution
-      - path: shared_types
-      - path: main_process/sandbox_execution
-      - path: main_process/memory_system
-  main_process/sandbox_execution:
-    dir_name: Cross-Platform Sandbox Execution & Isolation
-    title: Cross-Platform Sandbox Execution & Isolation
-    scope:
-      - src/main/sandbox/
-    source_files: []
-    children:
-      - main_process/sandbox_execution/wsl_agent
-      - main_process/sandbox_execution/native_common
-      - main_process/sandbox_execution/lima_agent
-    depends_on: []
-    related_to:
-      - path: main_process/tool_execution
-      - path: main_process/session_management
-      - path: main_process/claude_agent_runtime
-      - path: main_process/utilities
-      - path: unit_tests
-      - path: main_process/entry_points
-      - path: main_process/mcp_protocol
-      - path: main_process/config_management
-      - path: main_process/remote_connectivity
-  main_process/sandbox_execution/lima_agent:
-    dir_name: Lima Sandbox Agent
-    title: Lima Sandbox Agent
-    scope:
-      - src/main/sandbox/lima-agent/
-    source_files: []
-    children: []
-    depends_on: []
-    related_to:
-      - path: main_process/sandbox_execution/wsl_agent
-      - path: main_process/tool_execution
-      - path: main_process/sandbox_execution/native_common
   main_process/sandbox_execution/native_common:
     dir_name: Cross-Platform Sandbox Execution & Isolation
     title: Cross-Platform Sandbox Execution & Isolation
@@ -291,7 +115,6 @@ modules:
     depends_on: []
     related_to:
       - path: main_process/sandbox_execution/wsl_agent
-      - path: main_process/sandbox_execution/lima_agent
   main_process/sandbox_execution/wsl_agent:
     dir_name: WSL Sandbox Execution Agent
     title: WSL Sandbox Execution Agent
@@ -301,8 +124,6 @@ modules:
     children: []
     depends_on: []
     related_to:
-      - path: main_process/sandbox_execution/lima_agent
-      - path: main_process/tool_execution
       - path: main_process/sandbox_execution/native_common
   main_process/session_management:
     dir_name: AI Agent Runtime & Sandbox Orchestration
@@ -315,63 +136,10 @@ modules:
     depends_on: []
     related_to:
       - path: main_process/claude_agent_runtime
-      - path: main_process/remote_connectivity
-      - path: main_process/mcp_protocol
-      - path: main_process/tool_execution
-      - path: unit_tests
       - path: main_process/memory_system
-      - path: main_process/skills_plugins
-      - path: main_process/sandbox_execution
-      - path: main_process/entry_points
       - path: main_process/config_management
       - path: main_process/utilities
-      - path: shared_types
       - path: renderer_ui
-  main_process/skills_plugins:
-    dir_name: Skills & Plugin Runtime Management
-    title: Skills & Plugin Runtime Management
-    scope:
-      - src/main/skills/
-      - src/main/extensions/
-    source_files: []
-    children: []
-    depends_on: []
-    related_to:
-      - path: main_process/claude_agent_runtime
-      - path: skills
-      - path: main_process/utilities
-      - path: main_process/session_management
-      - path: main_process/mcp_protocol
-      - path: main_process/tool_execution
-      - path: renderer_ui
-      - path: main_process/config_management
-      - path: main_process/entry_points
-      - path: unit_tests
-      - path: shared_types
-  main_process/tool_execution:
-    dir_name: Secure Tool Execution & Sandbox Orchestration
-    title: Secure Tool Execution & Sandbox Orchestration
-    scope:
-      - src/main/tools/
-    source_files: []
-    children: []
-    depends_on: []
-    related_to:
-      - path: main_process/sandbox_execution
-      - path: main_process/claude_agent_runtime
-      - path: main_process/sandbox_execution/wsl_agent
-      - path: main_process/sandbox_execution/lima_agent
-      - path: main_process/session_management
-      - path: main_process/utilities
-      - path: unit_tests
-      - path: main_process/skills_plugins
-      - path: main_process/entry_points
-      - path: main_process/config_management
-      - path: main_process/mcp_protocol
-      - path: main_process/remote_connectivity
-      - path: renderer_ui
-      - path: shared_types
-      - path: main_process/memory_system
   main_process/utilities:
     dir_name: Core Utilities & Cross-Cutting Concerns
     title: Core Utilities & Cross-Cutting Concerns
@@ -384,17 +152,9 @@ modules:
     depends_on: []
     related_to:
       - path: main_process/config_management
-      - path: main_process/entry_points
-      - path: main_process/mcp_protocol
-      - path: main_process/skills_plugins
-      - path: main_process/remote_connectivity
-      - path: shared_types
-      - path: main_process/tool_execution
       - path: main_process/claude_agent_runtime
       - path: main_process/session_management
       - path: main_process/memory_system
-      - path: main_process/sandbox_execution
-      - path: unit_tests
       - path: renderer_ui
   renderer_ui:
     dir_name: Chat Interface & Session Management
@@ -405,16 +165,8 @@ modules:
     children: []
     depends_on: []
     related_to:
-      - path: main_process/entry_points
       - path: main_process/config_management
-      - path: main_process/remote_connectivity
-      - path: shared_types
-      - path: unit_tests
-      - path: docs_website
-      - path: main_process/skills_plugins
-      - path: main_process/mcp_protocol
       - path: main_process/session_management
-      - path: main_process/tool_execution
       - path: main_process/utilities
       - path: main_process/claude_agent_runtime
   resources_assets:
@@ -428,26 +180,6 @@ modules:
     related_to:
       - path: build_scripts
       - path: ci_config
-  shared_types:
-    dir_name: Shared Type Definitions and Utilities
-    title: Shared Type Definitions and Utilities
-    scope:
-      - src/shared/
-    source_files: []
-    children: []
-    depends_on: []
-    related_to:
-      - path: renderer_ui
-      - path: main_process/entry_points
-      - path: main_process/utilities
-      - path: main_process/config_management
-      - path: main_process/session_management
-      - path: main_process/claude_agent_runtime
-      - path: main_process/mcp_protocol
-      - path: main_process/tool_execution
-      - path: main_process/remote_connectivity
-      - path: main_process/skills_plugins
-      - path: docs_website
   skills:
     dir_name: Office Document Manipulation Skills
     title: Office Document Manipulation Skills
@@ -456,26 +188,4 @@ modules:
     source_files: []
     children: []
     depends_on: []
-    related_to:
-      - path: main_process/skills_plugins
-  unit_tests:
-    dir_name: Application Unit Testing Suite
-    title: Application Unit Testing Suite
-    scope:
-      - src/tests/
-      - tests/
-    source_files: []
-    children: []
-    depends_on: []
-    related_to:
-      - path: renderer_ui
-      - path: main_process/claude_agent_runtime
-      - path: main_process/session_management
-      - path: main_process/tool_execution
-      - path: main_process/mcp_protocol
-      - path: main_process/config_management
-      - path: main_process/remote_connectivity
-      - path: main_process/sandbox_execution
-      - path: main_process/skills_plugins
-      - path: main_process/utilities
-      - path: main_process/entry_points
+    related_to: []

@@ -7,4 +7,3 @@ source_files: []
 depends_on: []
 related_to:
   - path: main_process/sandbox_execution/wsl_agent
-  - path: main_process/sandbox_execution/lima_agent
