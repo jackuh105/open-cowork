@@ -5,13 +5,18 @@
  * Call this before React mounts so components inherit brand styles immediately.
  */
 
-import { BRAND_CONFIG } from './__generated-brand';
+import { BRAND_CONFIG, BRAND_ID } from './__generated-brand';
 
 /**
  * Inject brand colors by overriding the existing CSS variables
  * that the app's Tailwind theme and components already reference.
  */
 export function applyRendererBranding(): void {
+  // Default brand uses the built-in theme CSS variables; skip injection
+  if (BRAND_ID === 'open-cowork') {
+    return;
+  }
+
   const root = document.documentElement;
   if (!root) {
     console.warn('[brand] document.documentElement not available, skipping brand injection');
