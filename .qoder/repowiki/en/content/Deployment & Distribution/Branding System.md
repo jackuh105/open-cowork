@@ -11,7 +11,17 @@
 - [build-brand.js](file://scripts/build-brand.js)
 - [reset-brand.js](file://scripts/reset-brand.js)
 - [useBrand.ts](file://src/renderer/hooks/useBrand.ts)
+- [SettingsPanel.tsx](file://src/renderer/components/SettingsPanel.tsx)
 </cite>
+
+## Update Summary
+
+**Changes Made**
+
+- Added documentation for new settings visibility feature with configurable settings tabs
+- Updated build system to include runtime tab filtering capabilities
+- Enhanced TypeScript interfaces with visibleSettings property
+- Added validation logic for visibleSettings configuration
 
 ## Table of Contents
 
@@ -20,17 +30,20 @@
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Build System](#build-system)
-7. [Runtime Branding](#runtime-branding)
-8. [Development Workflow](#development-workflow)
-9. [Troubleshooting Guide](#troubleshooting-guide)
-10. [Conclusion](#conclusion)
+6. [Settings Visibility Feature](#settings-visibility-feature)
+7. [Build System](#build-system)
+8. [Runtime Branding](#runtime-branding)
+9. [Development Workflow](#development-workflow)
+10. [Troubleshooting Guide](#troubleshooting-guide)
+11. [Conclusion](#conclusion)
 
 ## Introduction
 
 The Open Cowork branding system is a comprehensive framework designed to enable customizable branding for the Electron-based desktop application. This system allows developers to modify visual elements such as application icons, window decorations, splash screens, and other UI components while maintaining a consistent user experience across different branded deployments.
 
 The branding system operates through a multi-layered architecture that separates build-time branding from runtime customization, ensuring flexibility while maintaining performance and reliability. It supports both development and production environments with automated tooling for seamless branding updates.
+
+**Updated** Added support for configurable settings tabs visibility control, allowing organizations to customize which settings tabs are displayed based on their specific needs.
 
 ## Project Structure
 
@@ -51,11 +64,17 @@ subgraph "Renderer Process"
 UseBrand["Use Brand Hook<br/>UI Integration"]
 BrandRuntime["Brand Runtime<br/>Access Methods"]
 end
+subgraph "Settings Visibility"
+SettingsPanel["Settings Panel<br/>Tab Filtering"]
+VisibleSettings["Visible Settings<br/>Configuration"]
+end
 SharedBrand --> BrandMain
 BrandSchema --> GeneratedBrand
 BrandTypes --> BrandRuntime
 GeneratedBrand --> UseBrand
 BrandRuntime --> UseBrand
+BrandTypes --> SettingsPanel
+SettingsPanel --> VisibleSettings
 ```
 
 **Diagram sources**
@@ -63,6 +82,7 @@ BrandRuntime --> UseBrand
 - [brand-main.ts:1-50](file://src/main/branding/brand-main.ts#L1-L50)
 - [\_\_generated-brand.ts:1-80](file://src/shared/branding/__generated-brand.ts#L1-L80)
 - [brand-runtime.ts:1-60](file://src/shared/branding/brand-runtime.ts#L1-L60)
+- [SettingsPanel.tsx:54-64](file://src/renderer/components/SettingsPanel.tsx#L54-L64)
 
 **Section sources**
 
@@ -86,6 +106,8 @@ The main process component handles Electron-specific branding operations, includ
 
 The renderer process provides React hooks that enable UI components to access branding information dynamically. These hooks facilitate responsive design and allow for real-time branding updates without requiring application restarts.
 
+**Updated** Enhanced with settings visibility configuration that allows organizations to control which settings tabs are displayed based on their branding requirements.
+
 **Section sources**
 
 - [\_\_generated-brand.ts:1-120](file://src/shared/branding/__generated-brand.ts#L1-L120)
@@ -108,6 +130,7 @@ class BrandTypes {
 +BrandColors
 +BrandAssets
 +BrandMetadata
++VisibleSettings
 }
 class BrandMain {
 +initializeBranding() void
@@ -128,10 +151,16 @@ class UseBrand {
 +useBrandAsset(name) string
 +useBrandingAvailable() boolean
 }
+class SettingsPanel {
++filterHiddenTabs(tabs) Tab[]
++resolveVisibleInitialTab(tab) TabId
++applyTabVisibilityFilter() void
+}
 BrandSchema --> BrandTypes : defines
 BrandMain --> BrandRuntime : uses
 UseBrand --> BrandRuntime : accesses
 BrandMain --> BrandSchema : validates
+SettingsPanel --> BrandTypes : uses
 ```
 
 **Diagram sources**
@@ -141,6 +170,7 @@ BrandMain --> BrandSchema : validates
 - [brand-main.ts:1-120](file://src/main/branding/brand-main.ts#L1-L120)
 - [brand-runtime.ts:1-120](file://src/shared/branding/brand-runtime.ts#L1-L120)
 - [useBrand.ts:1-100](file://src/renderer/hooks/useBrand.ts#L1-L100)
+- [SettingsPanel.tsx:54-64](file://src/renderer/components/SettingsPanel.tsx#L54-L64)
 
 ## Detailed Component Analysis
 
@@ -207,6 +237,47 @@ The renderer process provides React hooks that enable UI components to access br
 
 - [useBrand.ts:1-120](file://src/renderer/hooks/useBrand.ts#L1-L120)
 
+## Settings Visibility Feature
+
+**New** The settings visibility feature provides configurable control over which settings tabs are displayed to users. This enhancement allows organizations to tailor the application interface based on their specific operational requirements.
+
+### Configuration Structure
+
+The settings visibility feature is controlled through the `visibleSettings` property in brand configuration, which accepts an array of tab identifiers that should be displayed.
+
+```mermaid
+flowchart TD
+BrandConfig["Brand Configuration"] --> VisibleSettings["visibleSettings Array"]
+VisibleSettings --> Validation["Validation Logic"]
+Validation --> BuildTime["Build-Time Processing"]
+Validation --> Runtime["Runtime Filtering"]
+BuildTime --> HiddenTabs["Hidden Tabs Detection"]
+Runtime --> TabFiltering["Tab Filtering Process"]
+HiddenTabs --> SettingsPanel["Settings Panel"]
+TabFiltering --> SettingsPanel
+SettingsPanel --> UserInterface["Filtered UI"]
+```
+
+**Diagram sources**
+
+- [apply-brand.js:567-610](file://scripts/apply-brand.js#L567-L610)
+- [SettingsPanel.tsx:54-64](file://src/renderer/components/SettingsPanel.tsx#L54-L64)
+
+### Implementation Details
+
+The settings visibility feature implements both build-time and runtime filtering mechanisms:
+
+1. **Build-Time Filtering**: The `apply-brand.js` script analyzes the `visibleSettings` configuration and injects tab filtering logic directly into the `SettingsPanel.tsx` component during the build process.
+
+2. **Runtime Filtering**: The `SettingsPanel` component includes dynamic tab filtering that respects the branding configuration while maintaining runtime flexibility.
+
+3. **Fallback Mechanisms**: The system ensures that essential tabs (particularly the 'general' tab) remain accessible even when visibility configurations change.
+
+**Section sources**
+
+- [apply-brand.js:567-610](file://scripts/apply-brand.js#L567-L610)
+- [SettingsPanel.tsx:54-64](file://src/renderer/components/SettingsPanel.tsx#L54-L64)
+
 ## Build System
 
 The build system provides comprehensive tooling for managing branding across different environments and deployment scenarios. It includes scripts for applying, building, and resetting branding configurations.
@@ -247,6 +318,8 @@ GeneratedBrand --> CompiledApp
 ### Apply Brand Script
 
 The apply brand script serves as the primary interface for modifying branding configurations. It validates new branding assets, merges them with existing configurations, and prepares the application for recompilation.
+
+**Updated** Enhanced with settings visibility processing that injects tab filtering logic into the SettingsPanel component based on the `visibleSettings` configuration.
 
 **Section sources**
 
@@ -330,6 +403,8 @@ DeployBrand --> DevComplete([Development Complete])
 
 4. **Backup Strategy**: Maintain backups of original branding assets to enable quick restoration if needed.
 
+5. **Settings Visibility Testing**: When configuring settings visibility, test both build-time and runtime filtering to ensure proper tab display behavior.
+
 ## Troubleshooting Guide
 
 Common issues and solutions for the branding system:
@@ -364,16 +439,30 @@ Common issues and solutions for the branding system:
 - Check React hook usage patterns and dependencies
 - Review console logs for initialization errors
 
+### Settings Visibility Issues
+
+**Symptoms**: Settings tabs not displaying correctly or hidden unexpectedly
+**Causes**: Invalid `visibleSettings` configuration, missing tab identifiers, or filtering logic errors
+**Solutions**:
+
+- Verify all tab identifiers in `visibleSettings` are valid (api, sandbox, connectors, skills, memory, schedule, remote, logs, general)
+- Ensure the 'general' tab is always included in visibility configurations
+- Check build logs for settings panel patching errors
+- Test runtime filtering behavior with different tab configurations
+
 **Section sources**
 
 - [brand-schema.ts:1-80](file://src/shared/branding/brand-schema.ts#L1-L80)
 - [brand-main.ts:1-100](file://src/main/branding/brand-main.ts#L1-L100)
+- [apply-brand.js:567-610](file://scripts/apply-brand.js#L567-L610)
 
 ## Conclusion
 
 The Open Cowork branding system provides a robust, scalable solution for managing application branding across different deployment scenarios. Its layered architecture ensures maintainability while supporting dynamic branding updates and comprehensive customization capabilities.
 
 The system's strength lies in its separation of concerns, with clear boundaries between build-time configuration, runtime access, and UI integration. This design enables developers to modify branding elements efficiently while maintaining application stability and performance.
+
+**Updated** Recent enhancements include configurable settings tabs visibility control, which provides organizations with fine-grained control over the user interface presentation. The settings visibility feature combines build-time optimization with runtime flexibility to deliver a seamless user experience while respecting organizational branding requirements.
 
 Key benefits of the current implementation include:
 
@@ -382,5 +471,6 @@ Key benefits of the current implementation include:
 - Comprehensive validation and error handling
 - Seamless integration with Electron's native APIs
 - Support for both development and production workflows
+- Configurable settings tabs visibility for tailored user experiences
 
-Future enhancements could include expanded asset format support, advanced color scheme generation, and automated branding preview capabilities.
+Future enhancements could include expanded asset format support, advanced color scheme generation, automated branding preview capabilities, and additional customization options for the settings interface.
