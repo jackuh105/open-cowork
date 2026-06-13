@@ -14,6 +14,7 @@
  * - SettingsPanel.tsx tab visibility (from .bak)
  * - src/shared/branding/brand-types.ts (from .bak)
  * - src/shared/branding/brand-schema.ts (from .bak)
+ * - src/main/config/config-store.ts (from .bak)
  *
  * Removes:
  * - Newly added locale files (no .bak = didn't exist before)
@@ -58,6 +59,13 @@ const BRAND_SCHEMA_PATH = path.join(
   'shared',
   'branding',
   'brand-schema.ts'
+);
+const CONFIG_STORE_PATH = path.join(
+  PROJECT_ROOT,
+  'src',
+  'main',
+  'config',
+  'config-store.ts'
 );
 const GENERATED_BRAND_PATH = path.join(
   PROJECT_ROOT,
@@ -182,6 +190,9 @@ function main() {
   // Restore brand type system files
   restoreFile(BRAND_TYPES_PATH);
   restoreFile(BRAND_SCHEMA_PATH);
+
+  // Restore config-store.ts (defaultApi patching)
+  restoreFile(CONFIG_STORE_PATH);
 
   console.log('[brand] Reset complete.');
 }

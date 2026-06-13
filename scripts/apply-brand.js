@@ -69,6 +69,16 @@ const BRAND_SCHEMA_BAK = `${BRAND_SCHEMA_PATH}.bak`;
 const VALID_TAB_IDS = ['api', 'sandbox', 'connectors', 'skills', 'memory', 'schedule', 'remote', 'logs', 'general'];
 
 /**
+ * All valid ProviderProfileKey values (used for defaultApi validation).
+ */
+const VALID_PROFILE_KEYS = [
+  'openrouter', 'anthropic', 'openai', 'gemini', 'ollama',
+  'custom:anthropic', 'custom:openai', 'custom:gemini',
+];
+
+const CONFIG_STORE_PATH = path.join(PROJECT_ROOT, 'src', 'main', 'config', 'config-store.ts');
+
+/**
  * Locale code → native language name lookup for the language selector.
  * Used when patching SettingsGeneral.tsx to add new language buttons.
  */
@@ -173,6 +183,37 @@ function validateBrand(config) {
           `brand.visibleSettings contains invalid tab ID: "${tab}". ` +
           `Valid IDs: ${VALID_TAB_IDS.join(', ')}`
         );
+      }
+    }
+  }
+
+  // Optional defaultApi (validated if provided)
+  if (config.defaultApi !== undefined) {
+    if (typeof config.defaultApi !== 'object' || config.defaultApi === null) {
+      throw new Error('brand.defaultApi must be an object');
+    }
+    const keys = Object.keys(config.defaultApi);
+    if (keys.length !== 1) {
+      throw new Error(
+        `brand.defaultApi must contain exactly one provider key, got ${keys.length}. ` +
+        `Valid keys: ${VALID_PROFILE_KEYS.join(', ')}`
+      );
+    }
+    const profileKey = keys[0];
+    if (!VALID_PROFILE_KEYS.includes(profileKey)) {
+      throw new Error(
+        `brand.defaultApi contains invalid provider key: "${profileKey}". ` +
+        `Valid keys: ${VALID_PROFILE_KEYS.join(', ')}`
+      );
+    }
+    const profile = config.defaultApi[profileKey];
+    if (typeof profile !== 'object' || profile === null) {
+      throw new Error(`brand.defaultApi.${profileKey} must be an object`);
+    }
+    const allowedFields = ['apiKey', 'baseUrl', 'model'];
+    for (const field of allowedFields) {
+      if (profile[field] !== undefined && typeof profile[field] !== 'string') {
+        throw new Error(`brand.defaultApi.${profileKey}.${field} must be a string`);
       }
     }
   }
@@ -522,21 +563,27 @@ function patchSettingsGeneral(newLocales) {
 /**
  * Patch brand-types.ts to add visibleSettings to BrandConfig interface.
  */
-function patchBrandTypes() {
+function patchBrandTypes(config) {
   backupFile(BRAND_TYPES_PATH);
   let content = fs.readFileSync(BRAND_TYPES_PATH, 'utf-8');
   content = content.replace(
     /colorsDark\?: BrandColorsDark;\n/,
     "colorsDark?: BrandColorsDark;\n  /** Optional — list of settings tab IDs to show. Omit to show all. 'general' is always shown. */\n  visibleSettings?: string[];\n"
   );
+  if (config.defaultApi) {
+    content = content.replace(
+      /visibleSettings\?: string\[\];\n/,
+      'visibleSettings?: string[];\n  /** Optional — default API provider config. Key is a ProviderProfileKey. */\n  defaultApi?: Record<string, { apiKey?: string; baseUrl?: string; model?: string }>;\n'
+    );
+  }
   fs.writeFileSync(BRAND_TYPES_PATH, content, 'utf-8');
-  console.log('[brand] Patched brand-types.ts with visibleSettings');
+  console.log('[brand] Patched brand-types.ts' + (config.defaultApi ? ' with defaultApi' : ''));
 }
 
 /**
  * Patch brand-schema.ts to validate visibleSettings and include it in the return value.
  */
-function patchBrandSchema() {
+function patchBrandSchema(config) {
   backupFile(BRAND_SCHEMA_PATH);
   let content = fs.readFileSync(BRAND_SCHEMA_PATH, 'utf-8');
 
@@ -553,8 +600,23 @@ function patchBrandSchema() {
     'colorsDark: validateColorsDark(b.colorsDark),\n    visibleSettings: validateVisibleSettings(b.visibleSettings),\n  };'
   );
 
+  if (config.defaultApi) {
+    // Add validateDefaultApi function
+    const validateApiFunc = `\nfunction validateDefaultApi(obj: unknown): Record<string, { apiKey?: string; baseUrl?: string; model?: string }> | undefined {\n  if (obj === undefined) return undefined;\n  if (typeof obj !== 'object' || obj === null) {\n    throw new Error('brand.defaultApi must be an object');\n  }\n  const keys = Object.keys(obj);\n  if (keys.length !== 1) {\n    throw new Error('brand.defaultApi must contain exactly one provider key');\n  }\n  const validKeys = ['openrouter', 'anthropic', 'openai', 'gemini', 'ollama', 'custom:anthropic', 'custom:openai', 'custom:gemini'];\n  const profileKey = keys[0];\n  if (!validKeys.includes(profileKey)) {\n    throw new Error(\`brand.defaultApi contains invalid provider key: \${profileKey}\`);\n  }\n  const profile = (obj as Record<string, unknown>)[profileKey];\n  if (typeof profile !== 'object' || profile === null) {\n    throw new Error(\`brand.defaultApi.\${profileKey} must be an object\`);\n  }\n  const p = profile as Record<string, unknown>;\n  for (const field of ['apiKey', 'baseUrl', 'model']) {\n    if (p[field] !== undefined && typeof p[field] !== 'string') {\n      throw new Error(\`brand.defaultApi.\${profileKey}.\${field} must be a string\`);\n    }\n  }\n  return obj as Record<string, { apiKey?: string; baseUrl?: string; model?: string }>;\n}\n\n`;
+    content = content.replace(
+      /function validateVisibleSettings/,
+      validateApiFunc + 'function validateVisibleSettings'
+    );
+
+    // Add defaultApi to the return object
+    content = content.replace(
+      /visibleSettings: validateVisibleSettings\(b\.visibleSettings\),\n {2}\};/,
+      'visibleSettings: validateVisibleSettings(b.visibleSettings),\n    defaultApi: validateDefaultApi(b.defaultApi),\n  };'
+    );
+  }
+
   fs.writeFileSync(BRAND_SCHEMA_PATH, content, 'utf-8');
-  console.log('[brand] Patched brand-schema.ts with visibleSettings validation');
+  console.log('[brand] Patched brand-schema.ts' + (config.defaultApi ? ' with defaultApi' : ''));
 }
 
 /**
@@ -620,6 +682,111 @@ function patchSettingsPanel(config) {
 }
 
 /**
+ * Patch config-store.ts to replace hardcoded API defaults with brand values.
+ *
+ * Given a defaultApi like { "openai": { apiKey: "sk-xxx", baseUrl: "...", model: "gpt-5" } }:
+ * - Replaces the matching profile block in defaultProfiles
+ * - Updates defaultConfigSet provider/protocol/activeProfileKey
+ * - Updates defaultConfig profile references
+ * - Sets isConfigured=true if apiKey is non-empty
+ */
+function patchConfigStore(config) {
+  const defaultApi = config.defaultApi;
+  if (!defaultApi) {
+    console.log('[brand] No defaultApi in brand config, skipping config-store patch');
+    return;
+  }
+
+  const profileKey = Object.keys(defaultApi)[0];
+  const profile = defaultApi[profileKey];
+
+  // Derive provider type and customProtocol from the profile key
+  const providerType = profileKey.startsWith('custom:') ? 'custom' : profileKey;
+  let customProtocol;
+  if (profileKey.startsWith('custom:')) {
+    customProtocol = profileKey.split(':')[1];
+  } else if (profileKey === 'openai' || profileKey === 'ollama') {
+    customProtocol = 'openai';
+  } else if (profileKey === 'gemini') {
+    customProtocol = 'gemini';
+  } else {
+    customProtocol = 'anthropic';
+  }
+
+  backupFile(CONFIG_STORE_PATH);
+  let content = fs.readFileSync(CONFIG_STORE_PATH, 'utf-8');
+
+  // 1. Patch defaultProfiles[profileKey] — replace fields within the profile block
+  // Escape the key for regex (colons need escaping)
+  const escapedKey = profileKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  for (const field of ['apiKey', 'baseUrl', 'model']) {
+    if (profile[field] !== undefined) {
+      // Escape single quotes in the value for safe injection
+      const safeValue = profile[field].replace(/'/g, "\\\\'");
+      // Match the field inside the specific profile block:
+      //   profileKey: {
+      //     ...
+      //     field: '...',
+      const fieldRegex = new RegExp(
+        `(  ${escapedKey}: \\{[^}]*?)${field}: '[^']*',`,
+        's'
+      );
+      content = content.replace(fieldRegex, `$1${field}: '${safeValue}',`);
+    }
+  }
+
+  // 2. Patch defaultConfigSet — replace provider, customProtocol, activeProfileKey
+  // These are unique string literals within the defaultConfigSet block
+  content = content.replace(
+    /const defaultConfigSet: ApiConfigSet = \{[\s\S]*?provider: '[^']*',/,
+    (match) => match.replace(/provider: '[^']*',/, `provider: '${providerType}',`)
+  );
+  content = content.replace(
+    /const defaultConfigSet: ApiConfigSet = \{[\s\S]*?customProtocol: '[^']*',/,
+    (match) => match.replace(/customProtocol: '[^']*',/, `customProtocol: '${customProtocol}',`)
+  );
+  content = content.replace(
+    /const defaultConfigSet: ApiConfigSet = \{[\s\S]*?activeProfileKey: '[^']*',/,
+    (match) => match.replace(/activeProfileKey: '[^']*',/, `activeProfileKey: '${profileKey}',`)
+  );
+
+  // 3. Patch defaultConfig — replace profile references
+  // defaultProfiles.openrouter.xxx → defaultProfiles.<profileKey>.xxx
+  const originalDefaultKey = 'openrouter';
+  if (profileKey !== originalDefaultKey) {
+    content = content.replace(
+      new RegExp(`defaultProfiles\\.${originalDefaultKey}\\.apiKey`, 'g'),
+      `defaultProfiles.${profileKey}.apiKey`
+    );
+    content = content.replace(
+      new RegExp(`defaultProfiles\\.${originalDefaultKey}\\.baseUrl`, 'g'),
+      `defaultProfiles.${profileKey}.baseUrl`
+    );
+    content = content.replace(
+      new RegExp(`defaultProfiles\\.${originalDefaultKey}\\.model`, 'g'),
+      `defaultProfiles.${profileKey}.model`
+    );
+  }
+
+  // 4. Patch isConfigured if apiKey is non-empty
+  if (profile.apiKey && profile.apiKey.trim()) {
+    content = content.replace(
+      /\n( {2})isConfigured: false,\n\};/,
+      '\n$1isConfigured: true,\n};'
+    );
+  }
+
+  fs.writeFileSync(CONFIG_STORE_PATH, content, 'utf-8');
+  const fields = Object.entries(profile)
+    .filter(([, v]) => v !== undefined)
+    .map(([k]) => k)
+    .join(', ');
+  console.log(`[brand] Patched config-store.ts: provider=${profileKey}, fields=[${fields}]` +
+    (profile.apiKey?.trim() ? ', isConfigured=true' : ''));
+}
+
+/**
  * Main entry point.
  */
 function main() {
@@ -677,11 +844,16 @@ function main() {
   patchI18n(config, brandDir);
 
   // Patch type system and UI for visibleSettings (only when configured)
-  if (config.visibleSettings) {
-    patchBrandTypes();
-    patchBrandSchema();
+  if (config.visibleSettings || config.defaultApi) {
+    patchBrandTypes(config);
+    patchBrandSchema(config);
   }
   patchSettingsPanel(config);
+
+  // Patch config-store.ts for defaultApi (only when configured)
+  if (config.defaultApi) {
+    patchConfigStore(config);
+  }
 
   console.log(`[brand] Brand "${config.productName}" applied successfully.`);
 }

@@ -19,6 +19,13 @@
     "gradientTitles": true
   },
   "visibleSettings": ["api", "sandbox", "connectors", "skills", "memory", "schedule", "remote", "logs", "general"],
+  "defaultApi": {
+    "openai": {
+      "apiKey": "sk-brand-openai-key",
+      "baseUrl": "https://api.openai.com/v1",
+      "model": "gpt-5"
+    }
+  },
   "assets": {
     "iconMac": "icon.icns",
     "iconWin": "icon.ico",
