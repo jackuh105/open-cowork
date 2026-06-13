@@ -12,16 +12,18 @@
 - [reset-brand.js](file://scripts/reset-brand.js)
 - [useBrand.ts](file://src/renderer/hooks/useBrand.ts)
 - [SettingsPanel.tsx](file://src/renderer/components/SettingsPanel.tsx)
+- [config-store.ts](file://src/main/config/config-store.ts)
 </cite>
 
 ## Update Summary
 
 **Changes Made**
 
-- Added documentation for new settings visibility feature with configurable settings tabs
-- Updated build system to include runtime tab filtering capabilities
-- Enhanced TypeScript interfaces with visibleSettings property
-- Added validation logic for visibleSettings configuration
+- Added comprehensive documentation for new default API configuration capabilities
+- Updated build system to support automatic API configuration store patching
+- Enhanced TypeScript interfaces with defaultApi property for provider profiles
+- Added validation logic for default API configuration including provider keys and fields
+- Integrated default API settings with existing settings visibility feature
 
 ## Table of Contents
 
@@ -30,12 +32,13 @@
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Settings Visibility Feature](#settings-visibility-feature)
-7. [Build System](#build-system)
-8. [Runtime Branding](#runtime-branding)
-9. [Development Workflow](#development-workflow)
-10. [Troubleshooting Guide](#troubleshooting-guide)
-11. [Conclusion](#conclusion)
+6. [Default API Configuration System](#default-api-configuration-system)
+7. [Settings Visibility Feature](#settings-visibility-feature)
+8. [Build System Enhancements](#build-system-enhancements)
+9. [Runtime Branding Integration](#runtime-branding-integration)
+10. [Development Workflow](#development-workflow)
+11. [Troubleshooting Guide](#troubleshooting-guide)
+12. [Conclusion](#conclusion)
 
 ## Introduction
 
@@ -43,7 +46,7 @@ The Open Cowork branding system is a comprehensive framework designed to enable 
 
 The branding system operates through a multi-layered architecture that separates build-time branding from runtime customization, ensuring flexibility while maintaining performance and reliability. It supports both development and production environments with automated tooling for seamless branding updates.
 
-**Updated** Added support for configurable settings tabs visibility control, allowing organizations to customize which settings tabs are displayed based on their specific needs.
+**Updated** Added comprehensive default API configuration capabilities allowing organizations to define default API providers, base URLs, and models directly within brand settings. This enhancement enables automatic configuration of AI providers including OpenRouter, Anthropic, OpenAI, Gemini, Ollama, and custom variants, with enhanced validation system and automatic configuration store patching.
 
 ## Project Structure
 
@@ -64,17 +67,19 @@ subgraph "Renderer Process"
 UseBrand["Use Brand Hook<br/>UI Integration"]
 BrandRuntime["Brand Runtime<br/>Access Methods"]
 end
-subgraph "Settings Visibility"
-SettingsPanel["Settings Panel<br/>Tab Filtering"]
-VisibleSettings["Visible Settings<br/>Configuration"]
+subgraph "API Configuration"
+DefaultApi["Default API<br/>Configuration"]
+ConfigStore["Config Store<br/>Patching"]
+ProviderSupport["Provider<br/>Support Matrix"]
 end
 SharedBrand --> BrandMain
 BrandSchema --> GeneratedBrand
 BrandTypes --> BrandRuntime
 GeneratedBrand --> UseBrand
 BrandRuntime --> UseBrand
-BrandTypes --> SettingsPanel
-SettingsPanel --> VisibleSettings
+BrandTypes --> DefaultApi
+DefaultApi --> ConfigStore
+ConfigStore --> ProviderSupport
 ```
 
 **Diagram sources**
@@ -82,7 +87,9 @@ SettingsPanel --> VisibleSettings
 - [brand-main.ts:1-50](file://src/main/branding/brand-main.ts#L1-L50)
 - [\_\_generated-brand.ts:1-80](file://src/shared/branding/__generated-brand.ts#L1-L80)
 - [brand-runtime.ts:1-60](file://src/shared/branding/brand-runtime.ts#L1-L60)
-- [SettingsPanel.tsx:54-64](file://src/renderer/components/SettingsPanel.tsx#L54-L64)
+- [brand-types.ts:1-120](file://src/shared/branding/brand-types.ts#L1-L120)
+- [apply-brand.js:190-218](file://scripts/apply-brand.js#L190-L218)
+- [config-store.ts:1-100](file://src/main/config/config-store.ts#L1-L100)
 
 **Section sources**
 
@@ -106,7 +113,7 @@ The main process component handles Electron-specific branding operations, includ
 
 The renderer process provides React hooks that enable UI components to access branding information dynamically. These hooks facilitate responsive design and allow for real-time branding updates without requiring application restarts.
 
-**Updated** Enhanced with settings visibility configuration that allows organizations to control which settings tabs are displayed based on their branding requirements.
+**Updated** Enhanced with default API configuration support that allows organizations to define provider-specific settings directly in brand configurations, enabling automatic setup of AI providers during application initialization.
 
 **Section sources**
 
@@ -124,6 +131,7 @@ class BrandSchema {
 +validateBrandConfig(config) boolean
 +getDefaultBrand() BrandConfig
 +mergeBrandOverrides(base, overrides) BrandConfig
++validateDefaultApi(config) void
 }
 class BrandTypes {
 +BrandConfig
@@ -131,6 +139,7 @@ class BrandTypes {
 +BrandAssets
 +BrandMetadata
 +VisibleSettings
++DefaultApiConfig
 }
 class BrandMain {
 +initializeBranding() void
@@ -151,16 +160,18 @@ class UseBrand {
 +useBrandAsset(name) string
 +useBrandingAvailable() boolean
 }
-class SettingsPanel {
-+filterHiddenTabs(tabs) Tab[]
-+resolveVisibleInitialTab(tab) TabId
-+applyTabVisibilityFilter() void
+class DefaultApiConfig {
++provider : ProviderProfileKey
++apiKey? : string
++baseUrl? : string
++model? : string
++validateProfile() boolean
 }
 BrandSchema --> BrandTypes : defines
 BrandMain --> BrandRuntime : uses
 UseBrand --> BrandRuntime : accesses
 BrandMain --> BrandSchema : validates
-SettingsPanel --> BrandTypes : uses
+DefaultApiConfig --> BrandTypes : extends
 ```
 
 **Diagram sources**
@@ -170,7 +181,7 @@ SettingsPanel --> BrandTypes : uses
 - [brand-main.ts:1-120](file://src/main/branding/brand-main.ts#L1-L120)
 - [brand-runtime.ts:1-120](file://src/shared/branding/brand-runtime.ts#L1-L120)
 - [useBrand.ts:1-100](file://src/renderer/hooks/useBrand.ts#L1-L100)
-- [SettingsPanel.tsx:54-64](file://src/renderer/components/SettingsPanel.tsx#L54-L64)
+- [apply-brand.js:190-218](file://scripts/apply-brand.js#L190-L218)
 
 ## Detailed Component Analysis
 
@@ -186,6 +197,7 @@ participant Validator as "Validation Engine"
 Config->>Schema : loadBrandConfig()
 Schema->>Validator : validateBrandConfig(config)
 Validator-->>Schema : validationResults
+Schema->>Schema : validateDefaultApi(config)
 Schema->>Schema : mergeBrandOverrides(defaults, overrides)
 Schema-->>Config : validatedBrandConfig
 ```
@@ -193,6 +205,7 @@ Schema-->>Config : validatedBrandConfig
 **Diagram sources**
 
 - [brand-schema.ts:1-80](file://src/shared/branding/brand-schema.ts#L1-L80)
+- [apply-brand.js:190-218](file://scripts/apply-brand.js#L190-L218)
 
 **Section sources**
 
@@ -206,16 +219,19 @@ The generated brand runtime component creates optimized access patterns for bran
 flowchart TD
 Start([Brand Generation Start]) --> LoadConfig["Load Brand Configuration"]
 LoadConfig --> ValidateConfig["Validate Configuration"]
-ValidateConfig --> GenerateTypes["Generate Type Definitions"]
+ValidateConfig --> ValidateDefaultApi["Validate Default API Config"]
+ValidateDefaultApi --> GenerateTypes["Generate Type Definitions"]
 GenerateTypes --> OptimizeData["Optimize Data Structures"]
 OptimizeData --> CreateAccessors["Create Accessor Functions"]
-CreateAccessors --> ExportModule["Export Runtime Module"]
+CreateAccessors --> PatchConfigStore["Patch Config Store"]
+PatchConfigStore --> ExportModule["Export Runtime Module"]
 ExportModule --> End([Generation Complete])
 ```
 
 **Diagram sources**
 
 - [\_\_generated-brand.ts:1-100](file://src/shared/branding/__generated-brand.ts#L1-L100)
+- [apply-brand.js:693-787](file://scripts/apply-brand.js#L693-L787)
 
 **Section sources**
 
@@ -237,9 +253,66 @@ The renderer process provides React hooks that enable UI components to access br
 
 - [useBrand.ts:1-120](file://src/renderer/hooks/useBrand.ts#L1-L120)
 
+## Default API Configuration System
+
+**New** The default API configuration system provides comprehensive support for automatically setting up AI provider configurations based on brand specifications. This system enables organizations to define default API providers, base URLs, and models directly within their brand settings.
+
+### Configuration Structure
+
+The default API configuration is defined through the `defaultApi` property in brand configuration, which accepts a single provider profile object with optional API key, base URL, and model settings.
+
+```mermaid
+flowchart TD
+BrandConfig["Brand Configuration"] --> DefaultApi["defaultApi Object"]
+DefaultApi --> ProviderKey["Provider Profile Key"]
+ProviderKey --> ProfileObject["Profile Configuration"]
+ProfileObject --> ApiKey["apiKey (optional)"]
+ProfileObject --> BaseUrl["baseUrl (optional)"]
+ProfileObject --> Model["model (optional)"]
+ProviderKey --> Validation["Validation Logic"]
+Validation --> BuildTime["Build-Time Processing"]
+Validation --> Runtime["Runtime Integration"]
+BuildTime --> ConfigStore["Config Store Patching"]
+Runtime --> ProviderSupport["Provider Support Matrix"]
+ConfigStore --> AutoSetup["Automatic Setup"]
+ProviderSupport --> AutoSetup
+```
+
+**Diagram sources**
+
+- [apply-brand.js:190-218](file://scripts/apply-brand.js#L190-L218)
+- [apply-brand.js:693-787](file://scripts/apply-brand.js#L693-L787)
+- [brand-types.ts:1-120](file://src/shared/branding/brand-types.ts#L1-L120)
+
+### Supported Providers
+
+The default API configuration system supports the following provider profiles:
+
+- **OpenRouter**: `{"openrouter": {"apiKey": "your-key", "baseUrl": "https://openrouter.ai/api/v1", "model": "openai/gpt-4-turbo"}}`
+- **Anthropic**: `{"anthropic": {"apiKey": "your-key", "baseUrl": "https://api.anthropic.com/v1", "model": "claude-3-opus"}}`
+- **OpenAI**: `{"openai": {"apiKey": "your-key", "baseUrl": "https://api.openai.com/v1", "model": "gpt-4-turbo"}}`
+- **Gemini**: `{"google": {"apiKey": "your-key", "baseUrl": "https://generativelanguage.googleapis.com/v1beta", "model": "gemini-pro"}}`
+- **Ollama**: `{"ollama": {"baseUrl": "http://localhost:11434/api", "model": "llama3"}}`
+- **Custom**: Any custom provider with `{"custom": {"apiKey": "key", "baseUrl": "https://api.example.com/v1", "model": "model-name"}}`
+
+### Validation and Processing
+
+The default API configuration undergoes comprehensive validation during the build process:
+
+1. **Provider Key Validation**: Ensures exactly one provider key exists and is valid
+2. **Profile Object Validation**: Validates that the profile is a proper object
+3. **Field Validation**: Checks that apiKey, baseUrl, and model are strings when provided
+4. **Auto-Setup Integration**: Automatically patches the configuration store with validated settings
+
+**Section sources**
+
+- [apply-brand.js:190-218](file://scripts/apply-brand.js#L190-L218)
+- [apply-brand.js:693-787](file://scripts/apply-brand.js#L693-L787)
+- [brand-types.ts:1-120](file://src/shared/branding/brand-types.ts#L1-L120)
+
 ## Settings Visibility Feature
 
-**New** The settings visibility feature provides configurable control over which settings tabs are displayed to users. This enhancement allows organizations to tailor the application interface based on their specific operational requirements.
+**Updated** The settings visibility feature now works seamlessly with the default API configuration system, ensuring that settings tabs remain accessible while providing automatic API setup capabilities.
 
 ### Configuration Structure
 
@@ -248,19 +321,25 @@ The settings visibility feature is controlled through the `visibleSettings` prop
 ```mermaid
 flowchart TD
 BrandConfig["Brand Configuration"] --> VisibleSettings["visibleSettings Array"]
+BrandConfig --> DefaultApi["defaultApi Object"]
 VisibleSettings --> Validation["Validation Logic"]
+DefaultApi --> Validation
 Validation --> BuildTime["Build-Time Processing"]
 Validation --> Runtime["Runtime Filtering"]
 BuildTime --> HiddenTabs["Hidden Tabs Detection"]
+BuildTime --> ConfigPatching["Config Store Patching"]
 Runtime --> TabFiltering["Tab Filtering Process"]
+ConfigPatching --> AutoSetup["Automatic API Setup"]
 HiddenTabs --> SettingsPanel["Settings Panel"]
 TabFiltering --> SettingsPanel
+AutoSetup --> SettingsPanel
 SettingsPanel --> UserInterface["Filtered UI"]
 ```
 
 **Diagram sources**
 
 - [apply-brand.js:567-610](file://scripts/apply-brand.js#L567-L610)
+- [apply-brand.js:693-787](file://scripts/apply-brand.js#L693-L787)
 - [SettingsPanel.tsx:54-64](file://src/renderer/components/SettingsPanel.tsx#L54-L64)
 
 ### Implementation Details
@@ -273,14 +352,16 @@ The settings visibility feature implements both build-time and runtime filtering
 
 3. **Fallback Mechanisms**: The system ensures that essential tabs (particularly the 'general' tab) remain accessible even when visibility configurations change.
 
+4. **Integration with Default API**: The default API configuration system works alongside settings visibility to provide automatic setup without interfering with tab visibility controls.
+
 **Section sources**
 
 - [apply-brand.js:567-610](file://scripts/apply-brand.js#L567-L610)
 - [SettingsPanel.tsx:54-64](file://src/renderer/components/SettingsPanel.tsx#L54-L64)
 
-## Build System
+## Build System Enhancements
 
-The build system provides comprehensive tooling for managing branding across different environments and deployment scenarios. It includes scripts for applying, building, and resetting branding configurations.
+**Updated** The build system has been significantly enhanced to support default API configuration capabilities, including automatic configuration store patching and comprehensive validation.
 
 ```mermaid
 graph LR
@@ -294,6 +375,11 @@ BrandConfig["brand-config.json<br/>Branding Configuration"]
 BrandIcons["brand-icons/*<br/>Icon Resources"]
 BrandAssets["brand-assets/*<br/>Static Assets"]
 end
+subgraph "Default API Processing"
+DefaultApiValidation["Default API Validation"]
+ConfigStorePatching["Config Store Patching"]
+ProviderSupportMatrix["Provider Support Matrix"]
+end
 subgraph "Output"
 GeneratedBrand["__generated-brand.ts<br/>Generated Runtime"]
 CompiledApp["Compiled Application<br/>With Branding Applied"]
@@ -301,6 +387,9 @@ end
 ApplyBrand --> BrandConfig
 ApplyBrand --> BrandIcons
 ApplyBrand --> BrandAssets
+ApplyBrand --> DefaultApiValidation
+DefaultApiValidation --> ConfigStorePatching
+ConfigStorePatching --> ProviderSupportMatrix
 BuildBrand --> GeneratedBrand
 ResetBrand --> BrandConfig
 BrandConfig --> BuildBrand
@@ -314,16 +403,25 @@ GeneratedBrand --> CompiledApp
 - [apply-brand.js:1-80](file://scripts/apply-brand.js#L1-L80)
 - [build-brand.js:1-80](file://scripts/build-brand.js#L1-L80)
 - [reset-brand.js:1-80](file://scripts/reset-brand.js#L1-L80)
+- [apply-brand.js:190-218](file://scripts/apply-brand.js#L190-L218)
+- [apply-brand.js:693-787](file://scripts/apply-brand.js#L693-L787)
 
-### Apply Brand Script
+### Apply Brand Script Enhancements
 
-The apply brand script serves as the primary interface for modifying branding configurations. It validates new branding assets, merges them with existing configurations, and prepares the application for recompilation.
+The apply brand script now includes comprehensive default API configuration processing:
+
+1. **Default API Validation**: Validates the `defaultApi` configuration with strict provider key and field validation
+2. **TypeScript Interface Updates**: Automatically patches `brand-types.ts` to include the `defaultApi` property
+3. **Configuration Store Patching**: Integrates default API settings into the application's configuration system
+4. **Provider Support Integration**: Ensures compatibility with the supported provider matrix
 
 **Updated** Enhanced with settings visibility processing that injects tab filtering logic into the SettingsPanel component based on the `visibleSettings` configuration.
 
 **Section sources**
 
 - [apply-brand.js:1-120](file://scripts/apply-brand.js#L1-L120)
+- [apply-brand.js:190-218](file://scripts/apply-brand.js#L190-L218)
+- [apply-brand.js:693-787](file://scripts/apply-brand.js#L693-L787)
 
 ### Build Brand Script
 
@@ -341,7 +439,7 @@ The reset brand script restores default branding configurations and removes cust
 
 - [reset-brand.js:1-120](file://scripts/reset-brand.js#L1-L120)
 
-## Runtime Branding
+## Runtime Branding Integration
 
 The runtime branding system provides dynamic access to branding information throughout the application lifecycle. It enables real-time updates and maintains consistency across all application components.
 
@@ -351,10 +449,13 @@ participant UI as "UI Component"
 participant Hook as "useBrand Hook"
 participant Runtime as "Brand Runtime"
 participant Main as "Main Process"
+participant ConfigStore as "Config Store"
 UI->>Hook : useBrand()
 Hook->>Runtime : getAppName()
 Runtime->>Main : getBrandingData()
-Main-->>Runtime : BrandConfig
+Main->>ConfigStore : getDefaultApiConfig()
+ConfigStore-->>Main : Default API Settings
+Main-->>Runtime : BrandConfig with Default API
 Runtime-->>Hook : Branding Information
 Hook-->>UI : Branding Props
 UI->>UI : Render with Branding
@@ -365,6 +466,7 @@ Note over UI,Main : Real-time Updates Supported
 
 - [useBrand.ts:1-100](file://src/renderer/hooks/useBrand.ts#L1-L100)
 - [brand-runtime.ts:1-100](file://src/shared/branding/brand-runtime.ts#L1-L100)
+- [config-store.ts:1-100](file://src/main/config/config-store.ts#L1-L100)
 
 **Section sources**
 
@@ -377,12 +479,15 @@ The development workflow for the branding system emphasizes iterative developmen
 ```mermaid
 flowchart TD
 DevStart([Developer Starts]) --> ModifyAssets["Modify Branding Assets"]
-ModifyAssets --> RunApply["Run apply-brand.js"]
+ModifyAssets --> AddDefaultApi["Add Default API Configuration"]
+AddDefaultApi --> RunApply["Run apply-brand.js"]
 RunApply --> ValidateConfig["Validate Configuration"]
-ValidateConfig --> BuildBrand["Run build-brand.js"]
+ValidateConfig --> ValidateDefaultApi["Validate Default API"]
+ValidateDefaultApi --> BuildBrand["Run build-brand.js"]
 BuildBrand --> CompileApp["Compile Application"]
 CompileApp --> TestBrand["Test Branding Changes"]
-TestBrand --> Iterate{"More Changes?"}
+TestBrand --> TestDefaultApi["Test Default API Setup"]
+TestDefaultApi --> Iterate{"More Changes?"}
 Iterate --> |Yes| ModifyAssets
 Iterate --> |No| DeployBrand["Deploy Branding"]
 DeployBrand --> DevComplete([Development Complete])
@@ -397,13 +502,17 @@ DeployBrand --> DevComplete([Development Complete])
 
 1. **Asset Organization**: Maintain a clear hierarchy for branding assets with separate directories for icons, images, and configuration files.
 
-2. **Validation First**: Always validate branding configurations before applying changes to prevent runtime errors.
+2. **Default API Configuration**: When adding default API settings, ensure provider keys match supported profiles and include appropriate validation.
 
-3. **Incremental Testing**: Test branding changes incrementally to identify issues early in the development cycle.
+3. **Validation First**: Always validate branding configurations before applying changes to prevent runtime errors.
 
-4. **Backup Strategy**: Maintain backups of original branding assets to enable quick restoration if needed.
+4. **Incremental Testing**: Test branding changes incrementally to identify issues early in the development cycle.
 
-5. **Settings Visibility Testing**: When configuring settings visibility, test both build-time and runtime filtering to ensure proper tab display behavior.
+5. **Backup Strategy**: Maintain backups of original branding assets to enable quick restoration if needed.
+
+6. **Settings Visibility Testing**: When configuring settings visibility, test both build-time and runtime filtering to ensure proper tab display behavior.
+
+7. **Default API Testing**: Verify that default API configurations are properly applied and that the configuration store is correctly patched.
 
 ## Troubleshooting Guide
 
@@ -418,6 +527,17 @@ Common issues and solutions for the branding system:
 - Verify all required fields are present in brand configuration
 - Check asset file paths and ensure files exist
 - Validate data types match expected schema definitions
+
+### Default API Configuration Issues
+
+**Symptoms**: Default API settings not applied or causing errors
+**Causes**: Invalid provider keys, missing required fields, or incorrect data types
+**Solutions**:
+
+- Verify provider keys match supported profiles (openrouter, anthropic, openai, google, ollama, custom)
+- Ensure exactly one provider key exists in the defaultApi object
+- Check that apiKey, baseUrl, and model fields are strings when provided
+- Validate that the configuration store patching completes successfully
 
 ### Asset Loading Issues
 
@@ -450,11 +570,23 @@ Common issues and solutions for the branding system:
 - Check build logs for settings panel patching errors
 - Test runtime filtering behavior with different tab configurations
 
+### Configuration Store Patching Issues
+
+**Symptoms**: Default API settings not persisting or not taking effect
+**Causes**: Configuration store patching failures or invalid provider profiles
+**Solutions**:
+
+- Verify that the defaultApi configuration is properly formatted
+- Check that the configuration store patching process completes without errors
+- Ensure that the provider profile matches supported configurations
+- Review console logs for configuration store modification errors
+
 **Section sources**
 
 - [brand-schema.ts:1-80](file://src/shared/branding/brand-schema.ts#L1-L80)
 - [brand-main.ts:1-100](file://src/main/branding/brand-main.ts#L1-L100)
-- [apply-brand.js:567-610](file://scripts/apply-brand.js#L567-L610)
+- [apply-brand.js:190-218](file://scripts/apply-brand.js#L190-L218)
+- [apply-brand.js:693-787](file://scripts/apply-brand.js#L693-L787)
 
 ## Conclusion
 
@@ -462,15 +594,17 @@ The Open Cowork branding system provides a robust, scalable solution for managin
 
 The system's strength lies in its separation of concerns, with clear boundaries between build-time configuration, runtime access, and UI integration. This design enables developers to modify branding elements efficiently while maintaining application stability and performance.
 
-**Updated** Recent enhancements include configurable settings tabs visibility control, which provides organizations with fine-grained control over the user interface presentation. The settings visibility feature combines build-time optimization with runtime flexibility to deliver a seamless user experience while respecting organizational branding requirements.
+**Updated** Recent enhancements include comprehensive default API configuration capabilities that allow organizations to define provider-specific settings directly in brand configurations. The default API system provides automatic setup of AI providers including OpenRouter, Anthropic, OpenAI, Gemini, Ollama, and custom variants, with enhanced validation and automatic configuration store patching.
 
 Key benefits of the current implementation include:
 
-- Type-safe branding configurations
-- Dynamic runtime access patterns
-- Comprehensive validation and error handling
+- Type-safe branding configurations with default API support
+- Dynamic runtime access patterns with automatic API setup
+- Comprehensive validation and error handling for both branding and API configurations
 - Seamless integration with Electron's native APIs
 - Support for both development and production workflows
 - Configurable settings tabs visibility for tailored user experiences
+- Automatic configuration store patching for streamlined deployment
+- Extensive provider support matrix for diverse AI integration needs
 
-Future enhancements could include expanded asset format support, advanced color scheme generation, automated branding preview capabilities, and additional customization options for the settings interface.
+Future enhancements could include expanded asset format support, advanced color scheme generation, automated branding preview capabilities, additional customization options for the settings interface, and enhanced provider-specific configuration options.
