@@ -26,6 +26,9 @@
       "model": "gpt-5"
     }
   },
+  "skillhub": {
+    "baseUrl": "https://custom-skillhub-api-server"
+  },
   "assets": {
     "iconMac": "icon.icns",
     "iconWin": "icon.ico",
