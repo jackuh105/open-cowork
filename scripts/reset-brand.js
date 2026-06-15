@@ -67,6 +67,20 @@ const CONFIG_STORE_PATH = path.join(
   'config',
   'config-store.ts'
 );
+const PLUGIN_CATALOG_PATH = path.join(
+  PROJECT_ROOT,
+  'src',
+  'main',
+  'skills',
+  'plugin-catalog-service.ts'
+);
+const PLUGIN_RUNTIME_PATH = path.join(
+  PROJECT_ROOT,
+  'src',
+  'main',
+  'skills',
+  'plugin-runtime-service.ts'
+);
 const GENERATED_BRAND_PATH = path.join(
   PROJECT_ROOT,
   'src',
@@ -193,6 +207,10 @@ function main() {
 
   // Restore config-store.ts (defaultApi patching)
   restoreFile(CONFIG_STORE_PATH);
+
+  // Restore plugin catalog and runtime services (skillhub patching)
+  restoreFile(PLUGIN_CATALOG_PATH);
+  restoreFile(PLUGIN_RUNTIME_PATH);
 
   console.log('[brand] Reset complete.');
 }

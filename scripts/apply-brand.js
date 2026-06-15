@@ -63,6 +63,23 @@ const SETTINGS_PANEL_BAK = `${SETTINGS_PANEL_PATH}.bak`;
 const BRAND_TYPES_BAK = `${BRAND_TYPES_PATH}.bak`;
 const BRAND_SCHEMA_BAK = `${BRAND_SCHEMA_PATH}.bak`;
 
+const PLUGIN_CATALOG_PATH = path.join(
+  PROJECT_ROOT,
+  'src',
+  'main',
+  'skills',
+  'plugin-catalog-service.ts'
+);
+const PLUGIN_RUNTIME_PATH = path.join(
+  PROJECT_ROOT,
+  'src',
+  'main',
+  'skills',
+  'plugin-runtime-service.ts'
+);
+const PLUGIN_CATALOG_BAK = `${PLUGIN_CATALOG_PATH}.bak`;
+const PLUGIN_RUNTIME_BAK = `${PLUGIN_RUNTIME_PATH}.bak`;
+
 /**
  * All valid settings tab IDs.
  */
@@ -215,6 +232,16 @@ function validateBrand(config) {
       if (profile[field] !== undefined && typeof profile[field] !== 'string') {
         throw new Error(`brand.defaultApi.${profileKey}.${field} must be a string`);
       }
+    }
+  }
+
+  // Optional skillhub (validated if provided)
+  if (config.skillhub !== undefined) {
+    if (typeof config.skillhub !== 'object' || config.skillhub === null) {
+      throw new Error('brand.skillhub must be an object');
+    }
+    if (typeof config.skillhub.baseUrl !== 'string' || config.skillhub.baseUrl.length === 0) {
+      throw new Error('brand.skillhub.baseUrl must be a non-empty string');
     }
   }
 
@@ -576,8 +603,20 @@ function patchBrandTypes(config) {
       'visibleSettings?: string[];\n  /** Optional — default API provider config. Key is a ProviderProfileKey. */\n  defaultApi?: Record<string, { apiKey?: string; baseUrl?: string; model?: string }>;\n'
     );
   }
+  if (config.skillhub) {
+    // Add BrandSkillhub interface before BrandConfig
+    content = content.replace(
+      /export interface BrandConfig \{/,
+      'export interface BrandSkillhub {\n  /** Base URL of the custom Skillhub API server (no trailing slash). */\n  baseUrl: string;\n}\n\nexport interface BrandConfig {'
+    );
+    // Add skillhub field to BrandConfig
+    content = content.replace(
+      /defaultApi\?: Record<string, \{ apiKey\?: string; baseUrl\?: string; model\?: string \}>;\n/,
+      'defaultApi?: Record<string, { apiKey?: string; baseUrl?: string; model?: string }>;\n  /** Optional — custom Skillhub API. When present, replaces the Claude marketplace. */\n  skillhub?: BrandSkillhub;\n'
+    );
+  }
   fs.writeFileSync(BRAND_TYPES_PATH, content, 'utf-8');
-  console.log('[brand] Patched brand-types.ts' + (config.defaultApi ? ' with defaultApi' : ''));
+  console.log('[brand] Patched brand-types.ts' + (config.defaultApi ? ' with defaultApi' : '') + (config.skillhub ? ' with skillhub' : ''));
 }
 
 /**
@@ -602,7 +641,7 @@ function patchBrandSchema(config) {
 
   if (config.defaultApi) {
     // Add validateDefaultApi function
-    const validateApiFunc = `\nfunction validateDefaultApi(obj: unknown): Record<string, { apiKey?: string; baseUrl?: string; model?: string }> | undefined {\n  if (obj === undefined) return undefined;\n  if (typeof obj !== 'object' || obj === null) {\n    throw new Error('brand.defaultApi must be an object');\n  }\n  const keys = Object.keys(obj);\n  if (keys.length !== 1) {\n    throw new Error('brand.defaultApi must contain exactly one provider key');\n  }\n  const validKeys = ['openrouter', 'anthropic', 'openai', 'gemini', 'ollama', 'custom:anthropic', 'custom:openai', 'custom:gemini'];\n  const profileKey = keys[0];\n  if (!validKeys.includes(profileKey)) {\n    throw new Error(\`brand.defaultApi contains invalid provider key: \${profileKey}\`);\n  }\n  const profile = (obj as Record<string, unknown>)[profileKey];\n  if (typeof profile !== 'object' || profile === null) {\n    throw new Error(\`brand.defaultApi.\${profileKey} must be an object\`);\n  }\n  const p = profile as Record<string, unknown>;\n  for (const field of ['apiKey', 'baseUrl', 'model']) {\n    if (p[field] !== undefined && typeof p[field] !== 'string') {\n      throw new Error(\`brand.defaultApi.\${profileKey}.\${field} must be a string\`);\n    }\n  }\n  return obj as Record<string, { apiKey?: string; baseUrl?: string; model?: string }>;\n}\n\n`;
+    const validateApiFunc = `\nfunction validateDefaultApi(obj: unknown): Record<string, { apiKey?: string; baseUrl?: string; model?: string }> | undefined {\n  if (obj === undefined) return undefined;\n  if (typeof obj !== 'object' || obj === null) {\n    throw new Error('brand.defaultApi must be an object');\n  }\n  const keys = Object.keys(obj);\n  if (keys.length !== 1) {\n    throw new Error(\`brand.defaultApi must contain exactly one provider key\`);\n  }\n  const validKeys = ['openrouter', 'anthropic', 'openai', 'gemini', 'ollama', 'custom:anthropic', 'custom:openai', 'custom:gemini'];\n  const profileKey = keys[0];\n  if (!validKeys.includes(profileKey)) {\n    throw new Error(\`brand.defaultApi contains invalid provider key: \${profileKey}\`);\n  }\n  const profile = (obj as Record<string, unknown>)[profileKey];\n  if (typeof profile !== 'object' || profile === null) {\n    throw new Error(\`brand.defaultApi.\${profileKey} must be an object\`);\n  }\n  const p = profile as Record<string, unknown>;\n  for (const field of ['apiKey', 'baseUrl', 'model']) {\n    if (p[field] !== undefined && typeof p[field] !== 'string') {\n      throw new Error(\`brand.defaultApi.\${profileKey}.\${field} must be a string\`);\n    }\n  }\n  return obj as Record<string, { apiKey?: string; baseUrl?: string; model?: string }>;\n}\n\n`;
     content = content.replace(
       /function validateVisibleSettings/,
       validateApiFunc + 'function validateVisibleSettings'
@@ -615,8 +654,29 @@ function patchBrandSchema(config) {
     );
   }
 
+  if (config.skillhub) {
+    // Add BrandSkillhub to imports
+    content = content.replace(
+      / {2}BrandAssets,\n\} from '\.\/brand-types';/,
+      "  BrandAssets,\n  BrandSkillhub,\n} from './brand-types';"
+    );
+
+    // Add validateSkillhub function
+    const validateSkillhubFunc = `\nfunction validateSkillhub(obj: unknown): BrandSkillhub | undefined {\n  if (obj === undefined) return undefined;\n  if (typeof obj !== 'object' || obj === null) {\n    throw new Error('brand.skillhub must be an object');\n  }\n  const s = obj as Record<string, unknown>;\n  if (typeof s.baseUrl !== 'string' || s.baseUrl.length === 0) {\n    throw new Error('brand.skillhub.baseUrl must be a non-empty string');\n  }\n  return obj as BrandSkillhub;\n}\n\n`;
+    content = content.replace(
+      /function validateVisibleSettings/,
+      validateSkillhubFunc + 'function validateVisibleSettings'
+    );
+
+    // Add skillhub to the return object
+    content = content.replace(
+      /defaultApi: validateDefaultApi\(b\.defaultApi\),\n {2}\};/,
+      'defaultApi: validateDefaultApi(b.defaultApi),\n    skillhub: validateSkillhub(b.skillhub),\n  };'
+    );
+  }
+
   fs.writeFileSync(BRAND_SCHEMA_PATH, content, 'utf-8');
-  console.log('[brand] Patched brand-schema.ts' + (config.defaultApi ? ' with defaultApi' : ''));
+  console.log('[brand] Patched brand-schema.ts' + (config.defaultApi ? ' with defaultApi' : '') + (config.skillhub ? ' with skillhub' : ''));
 }
 
 /**
@@ -787,6 +847,256 @@ function patchConfigStore(config) {
 }
 
 /**
+ * Patch plugin-catalog-service.ts and plugin-runtime-service.ts to use custom Skillhub API.
+ *
+ * - Replaces HTML-scraping catalog fetch with JSON API call
+ * - Replaces Claude CLI install with file-by-file Skillhub fetch
+ */
+function patchSkillhub(config) {
+  const baseUrl = config.skillhub.baseUrl.replace(/\/$/, ''); // strip trailing slash
+
+  // --- Patch plugin-catalog-service.ts ---
+  backupFile(PLUGIN_CATALOG_PATH);
+  let catalogContent = fs.readFileSync(PLUGIN_CATALOG_PATH, 'utf-8');
+
+  // 1. Replace CLAUDE_PLUGINS_URL constant
+  catalogContent = catalogContent.replace(
+    /const CLAUDE_PLUGINS_URL = '[^']+';/,
+    `const CLAUDE_PLUGINS_URL = '${baseUrl}';`
+  );
+
+  // 1b. Remove unused imports and constants (DETAIL_FETCH_CONCURRENCY, EMPTY_COUNTS, HttpRequestError)
+  catalogContent = catalogContent.replace(
+    /import type \{ PluginCatalogItem, PluginComponentCounts \} from '[^']+';\n/,
+    "import type { PluginCatalogItem } from '../../renderer/types';\n"
+  );
+  catalogContent = catalogContent.replace(
+    /\nconst DETAIL_FETCH_CONCURRENCY = \d+;\n/,
+    '\n'
+  );
+  catalogContent = catalogContent.replace(
+    /\nconst EMPTY_COUNTS: PluginComponentCounts = \{[\s\S]*?\};\n/,
+    '\n'
+  );
+  catalogContent = catalogContent.replace(
+    /\nclass HttpRequestError extends Error \{[\s\S]*?\}\n\n(?=export class)/,
+    '\n'
+  );
+
+  // 2. Add SkillhubItem interface after the imports
+  const skillhubInterface = `\ninterface SkillhubItem {\n  name: string;\n  description: string | null;\n  license: string | null;\n  compatibility: string | null;\n  metadata: Record<string, string | undefined>;\n  'allowed-tools': string | null;\n}\n`;
+  catalogContent = catalogContent.replace(
+    /(export class PluginCatalogService \{)/,
+    skillhubInterface + '\n$1'
+  );
+
+  // 3. Replace listAnthropicPlugins method body
+  const newMethodBody = `  async listAnthropicPlugins(forceRefresh = false, installableOnly = false): Promise<PluginCatalogItem[]> {
+    if (!forceRefresh && this.cache && this.cache.expiresAt > Date.now()) {
+      return installableOnly
+        ? this.cache.data.filter((p) => p.installable)
+        : this.cache.data;
+    }
+
+    try {
+      const response = await this.fetchFn(\`\${CLAUDE_PLUGINS_URL}/api/skills\`, {
+        headers: { 'User-Agent': DEFAULT_USER_AGENT },
+      });
+      if (!response.ok) {
+        throw new Error(\`Skillhub request failed (\${response.status}) for \${CLAUDE_PLUGINS_URL}/api/skills\`);
+      }
+      const items = (await response.json()) as SkillhubItem[];
+      const data = items
+        .map((item): PluginCatalogItem => ({
+          name: item.name,
+          description: item.description ?? undefined,
+          version: item.metadata?.version ?? undefined,
+          authorName: item.metadata?.author ?? undefined,
+          installable: true,
+          hasManifest: false,
+          componentCounts: { skills: 1, commands: 0, agents: 0, hooks: 0, mcp: 0 },
+          skillCount: 1,
+          hasSkills: true,
+          pluginId: item.metadata?.pluginId ?? item.name,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      return this.setAndFilterCache(data, installableOnly);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(\`Failed to fetch plugin catalog: \${message}\`);
+    }
+  }`;
+
+  // Match the entire listAnthropicPlugins method (from signature to closing brace before downloadPlugin)
+  catalogContent = catalogContent.replace(
+    / {2}async listAnthropicPlugins\(forceRefresh = false, installableOnly = false\): Promise<PluginCatalogItem\[\]> \{[\s\S]*?\n {2}\}\n\n {2}async downloadPlugin/,
+    newMethodBody + '\n\n  async downloadPlugin'
+  );
+
+  // 4. Remove all dead code: downloadPlugin, HTML-parsing methods, fetchText, extractErrorMessage
+  //    Step A: remove downloadPlugin through mapWithConcurrency (everything before setAndFilterCache)
+  //    Uses greedy [\s\S]* to span across all method boundaries.
+  catalogContent = catalogContent.replace(
+    / {2}async downloadPlugin\([\s\S]*\n {2}\}\n\n( {2}private setAndFilterCache)/,
+    '$1'
+  );
+  //    Step B: remove fetchText and extractErrorMessage (dead code after setAndFilterCache)
+  catalogContent = catalogContent.replace(
+    new RegExp('\\n {2}private async fetchText\\([\\s\\S]*\\n {2}\\}\\n\\n {2}private async extractErrorMessage\\([\\s\\S]*\\n {2}\\}\\n'),
+    '\n'
+  );
+
+  fs.writeFileSync(PLUGIN_CATALOG_PATH, catalogContent, 'utf-8');
+  console.log(`[brand] Patched plugin-catalog-service.ts → Skillhub at ${baseUrl}`);
+
+  // --- Patch plugin-runtime-service.ts ---
+  backupFile(PLUGIN_RUNTIME_PATH);
+  let runtimeContent = fs.readFileSync(PLUGIN_RUNTIME_PATH, 'utf-8');
+
+  // 1. Add os import at the top (after existing imports)
+  if (!runtimeContent.includes("import * as os from 'node:os'")) {
+    runtimeContent = runtimeContent.replace(
+      /(import \* as path from 'node:path';)/,
+      "$1\nimport * as os from 'node:os';"
+    );
+  }
+
+  // 2. Replace install() method's CLI calls with skillhub download
+  runtimeContent = runtimeContent.replace(
+    / {4}await this\.installWithClaudeCli\(pluginId\);\n {4}const pluginRootPath = await this\.resolveInstallPathFromCli\(pluginId\);/,
+    '    const pluginRootPath = await this.installFromSkillhub(pluginId);'
+  );
+
+  // 3. Replace installWithClaudeCli, resolveInstallPathFromCli, listInstalledPluginsFromCli
+  //    with a single installFromSkillhub method
+  const skillhubInstallMethod = `  private async installFromSkillhub(pluginId: string): Promise<string> {
+    log(\`[PluginRuntime] Installing from Skillhub: \${pluginId}\`);
+    const baseUrl = '${baseUrl}';
+
+    // Fetch skill metadata for version
+    const metaResponse = await fetch(\`\${baseUrl}/api/skills\`, {
+      headers: { 'User-Agent': 'open-cowork-plugin-catalog/3.0' },
+    });
+    if (!metaResponse.ok) {
+      throw new Error(\`Failed to fetch skill metadata (\${metaResponse.status})\`);
+    }
+    const skills = await metaResponse.json() as Array<{ name: string; metadata: Record<string, string> }>;
+    const skill = skills.find((s) => s.name === pluginId);
+    const version = skill?.metadata?.version ?? '1.0.0';
+
+    // Fetch file list
+    const listResponse = await fetch(\`\${baseUrl}/api/skills/\${pluginId}/files\`, {
+      headers: { 'User-Agent': 'open-cowork-plugin-catalog/3.0' },
+    });
+    if (!listResponse.ok) {
+      throw new Error(\`Failed to list skill files (\${listResponse.status})\`);
+    }
+    const { files } = await listResponse.json() as { skill_name: string; files: string[] };
+
+    // Create temp directory structure
+    const tempDir = path.join(os.tmpdir(), \`skillhub-\${pluginId}-\${Date.now()}\`);
+    const wrapperDir = path.join(tempDir, '__plugin');
+    const skillsDir = path.join(wrapperDir, 'skills', pluginId);
+    fs.mkdirSync(skillsDir, { recursive: true });
+
+    // Fetch and write files with concurrency limit
+    const CONCURRENCY = 5;
+    for (let i = 0; i < files.length; i += CONCURRENCY) {
+      const batch = files.slice(i, i + CONCURRENCY);
+      await Promise.all(batch.map(async (filePath) => {
+        const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+        const fileResponse = await fetch(
+          \`\${baseUrl}/api/skills/\${pluginId}/files/\${encodedPath}\`,
+          { headers: { 'User-Agent': 'open-cowork-plugin-catalog/3.0' } }
+        );
+        if (!fileResponse.ok) {
+          throw new Error(\`Failed to fetch file \${filePath} (\${fileResponse.status})\`);
+        }
+        const buffer = Buffer.from(await fileResponse.arrayBuffer());
+        const destPath = path.join(skillsDir, ...filePath.split('/'));
+        fs.mkdirSync(path.dirname(destPath), { recursive: true });
+        fs.writeFileSync(destPath, buffer);
+      }));
+    }
+
+    // Generate plugin manifest
+    const manifestDir = path.join(wrapperDir, '.claude-plugin');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(manifestDir, 'plugin.json'),
+      JSON.stringify({ name: pluginId, version }, null, 2)
+    );
+
+    log(\`[PluginRuntime] Skillhub install complete: \${pluginId} → \${wrapperDir}\`);
+    return wrapperDir;
+  }`;
+
+  // Replace the three CLI methods with the single skillhub method
+  const cliMethodsRegex = new RegExp(
+    '  private async installWithClaudeCli\\([\\s\\S]*?\\n  \\}\\n\\n' +
+    '  private async resolveInstallPathFromCli\\([\\s\\S]*?\\n  \\}\\n\\n' +
+    '  private async listInstalledPluginsFromCli\\([\\s\\S]*?\\n  \\}\\n'
+  );
+  runtimeContent = runtimeContent.replace(
+    cliMethodsRegex,
+    skillhubInstallMethod + '\n\n'
+  );
+
+  fs.writeFileSync(PLUGIN_RUNTIME_PATH, runtimeContent, 'utf-8');
+  console.log(`[brand] Patched plugin-runtime-service.ts → Skillhub download at ${baseUrl}`);
+
+  // --- Cleanup dead code in runtime service ---
+  // Remove dead imports (execFile, promisify, getDefaultShell only used by removed code)
+  runtimeContent = runtimeContent.replace(/import \{ execFile \} from 'node:child_process';\n/, '');
+  runtimeContent = runtimeContent.replace(/import \{ promisify \} from 'node:util';\n/, '');
+  runtimeContent = runtimeContent.replace(/import \{ getDefaultShell \} from '[^']+';\n/, '');
+  // Remove execFileAsync constant
+  runtimeContent = runtimeContent.replace(/\nconst execFileAsync = promisify\(execFile\);\n/, '\n');
+  // Remove CommandOutput interface
+  runtimeContent = runtimeContent.replace(
+    new RegExp('\\ninterface CommandOutput \\{\\n {2}stdout: string;\\n {2}stderr: string;\\n\\}\\n'),
+    '\n'
+  );
+  // Remove CommandRunner type
+  runtimeContent = runtimeContent.replace(
+    /\ntype CommandRunner = \(command: string, args: string\[\]\) => Promise<CommandOutput>;\n/,
+    '\n'
+  );
+  // Remove ClaudeInstalledPluginRecord interface
+  runtimeContent = runtimeContent.replace(
+    /\ninterface ClaudeInstalledPluginRecord \{[\s\S]*?\}\n/,
+    '\n'
+  );
+  // Remove ClaudePluginListOutput interface (only used by removed listInstalledPluginsFromCli)
+  runtimeContent = runtimeContent.replace(
+    /\ninterface ClaudePluginListOutput \{[\s\S]*?\}\n/,
+    '\n'
+  );
+  // Remove commandRunner property and assignment (only used by removed CLI methods)
+  runtimeContent = runtimeContent.replace(
+    / {2}private readonly commandRunner: CommandRunner;\n/,
+    ''
+  );
+  runtimeContent = runtimeContent.replace(
+    / {4}this\.commandRunner = commandRunner;\n/,
+    ''
+  );
+  // Remove commandRunner constructor parameter and defaultCommandRunner reference
+  runtimeContent = runtimeContent.replace(
+    /,\n {4}commandRunner: CommandRunner = PluginRuntimeService\.defaultCommandRunner/,
+    ''
+  );
+  // Remove defaultCommandRunner static method
+  runtimeContent = runtimeContent.replace(
+    /\n {2}private static async defaultCommandRunner\([\s\S]*?\n {2}\}\n/,
+    '\n'
+  );
+
+  fs.writeFileSync(PLUGIN_RUNTIME_PATH, runtimeContent, 'utf-8');
+}
+
+/**
  * Main entry point.
  */
 function main() {
@@ -844,7 +1154,7 @@ function main() {
   patchI18n(config, brandDir);
 
   // Patch type system and UI for visibleSettings (only when configured)
-  if (config.visibleSettings || config.defaultApi) {
+  if (config.visibleSettings || config.defaultApi || config.skillhub) {
     patchBrandTypes(config);
     patchBrandSchema(config);
   }
@@ -853,6 +1163,11 @@ function main() {
   // Patch config-store.ts for defaultApi (only when configured)
   if (config.defaultApi) {
     patchConfigStore(config);
+  }
+
+  // Patch plugin catalog and runtime services for custom Skillhub (only when configured)
+  if (config.skillhub) {
+    patchSkillhub(config);
   }
 
   console.log(`[brand] Brand "${config.productName}" applied successfully.`);
